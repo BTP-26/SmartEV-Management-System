@@ -213,14 +213,12 @@ EV Smart Management System is fully operational!
 ### **Braking Dataset: UAH-DriveSet v1**
 - **Source**: University of Alabama Huntsfield Driving Dataset
 - **Download**: Available from official UAH repository: https://www.robesafe.uah.es/personal/eduardo.romera/uah-driveset/
-- **Alternative**: https://data.mendeley.com/datasets/7vdkzpnjgj/2 (if UAH repository unavailable)
 - **Usage**: Download UAH-DriveSet and run your trained model on it as a zero-shot or fine-tuned transfer test. Even showing that your model achieves reasonable accuracy on real driver data validates the architecture. You don't need to retrain from scratch.
 - **Features**: 6 drivers, 44 trips with comprehensive sensor data
 - **Compatibility**: Existing code processes UAH-DriveSet with minimal changes
 
 ### **SoC Dataset: Mendeley Poztato EV Dataset**
 - **Source**: https://data.mendeley.com/datasets/7vdkzpnjgj/2
-- **Alternative**: https://www.robesafe.uah.es/personal/eduardo.romera/uah-driveset/ (if Mendeley link is unavailable)
 - **Usage**: Replace NASA with the Mendeley Poztato EV dataset. It has the same three input features (voltage, current, temperature) plus SoC ground truth, so your existing LSTMCNNAttentionSoC code requires essentially zero changes to run on it.
 - **Features**: Real vehicle driving with regenerative braking current
 - **Advantage**: Comes from a real car being driven, not a lab bench, and includes regenerative braking current which directly connects to your paper's core claim about regenerative braking control.
