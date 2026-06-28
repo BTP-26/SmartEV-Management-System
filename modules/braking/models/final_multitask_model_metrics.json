@@ -1,0 +1,7 @@
+{
+  "val_accuracy": 0.8305450620615219,
+  "val_f1_macro": 0.5619345765121125,
+  "val_f1_weighted": 0.7850053105486654,
+  "model_type": "multitask_lstm_cnn_attention",
+  "validation_samples": 1853
+}

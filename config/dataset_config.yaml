@@ -1,0 +1,72 @@
+# Dataset Configuration for EV Smart Management System
+# Controls which datasets to use: simulated or real-world
+
+# Global dataset mode
+use_real_datasets: true
+
+# SoC Module Dataset Configuration
+soc:
+  # Dataset source: "real" or "simulated"
+  source: "real"
+  
+  # Real dataset paths (when source = "real")
+  real_data:
+    train_file: "modules/soc/data/X_train_real.npy"
+    val_file: "modules/soc/data/X_val_real.npy"
+    test_file: "modules/soc/data/X_test_real.npy"
+    y_train_file: "modules/soc/data/y_train_real.npy"
+    y_val_file: "modules/soc/data/y_val_real.npy"
+    y_test_file: "modules/soc/data/y_test_real.npy"
+  
+  # Simulated dataset paths (when source = "simulated")
+  simulated_data:
+    train_file: "modules/soc/data/X_train.npy"
+    val_file: "modules/soc/data/X_val.npy"
+    test_file: "modules/soc/data/X_test.npy"
+    y_train_file: "modules/soc/data/y_train.npy"
+    y_val_file: "modules/soc/data/y_val.npy"
+    y_test_file: "modules/soc/data/y_test.npy"
+
+# Braking Module Dataset Configuration
+braking:
+  # Dataset source: "real" or "simulated"
+  source: "real"
+  
+  # Real dataset paths (when source = "real")
+  real_data:
+    train_file: "modules/braking/data/X_train_real.npy"
+    val_file: "modules/braking/data/X_val_real.npy"
+    test_file: "modules/braking/data/X_test_real.npy"
+    y_int_train_file: "modules/braking/data/y_int_train_real.npy"
+    y_int_val_file: "modules/braking/data/y_int_val_real.npy"
+    y_int_test_file: "modules/braking/data/y_int_test_real.npy"
+    y_class_train_file: "modules/braking/data/y_class_train_real.npy"
+    y_class_val_file: "modules/braking/data/y_class_val_real.npy"
+    y_class_test_file: "modules/braking/data/y_class_test_real.npy"
+  
+  # Simulated dataset paths (when source = "simulated")
+  simulated_data:
+    train_file: "modules/braking/data/X_train.npy"
+    val_file: "modules/braking/data/X_val.npy"
+    test_file: "modules/braking/data/X_test.npy"
+    y_int_train_file: "modules/braking/data/y_int_train.npy"
+    y_int_val_file: "modules/braking/data/y_int_val.npy"
+    y_int_test_file: "modules/braking/data/y_int_test.npy"
+    y_class_train_file: "modules/braking/data/y_class_train.npy"
+    y_class_val_file: "modules/braking/data/y_class_val.npy"
+    y_class_test_file: "modules/braking/data/y_class_test.npy"
+
+# Dataset preprocessing settings
+preprocessing:
+  # Window sizes for time series
+  soc_window_size: 50
+  braking_window_size: 75
+  
+  # Step sizes for sliding windows
+  soc_step_size: 25
+  braking_step_size: 25
+
+# Real dataset source paths
+real_dataset_sources:
+  ev_driving_charging: "Real-world electric vehicle data driving and charging"
+  uah_driveset: "UAH-DRIVESET-v1"
