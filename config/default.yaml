@@ -1,0 +1,72 @@
+system:
+  device: "auto"
+  seed: 42
+  debug: false
+
+data:
+  braking:
+    window_size: 75
+    features: 7
+    train_split: 0.7
+    val_split: 0.15
+    test_split: 0.15
+  
+  soc:
+    window_size: 50
+    features: 3
+    train_split: 0.7
+    val_split: 0.15
+    test_split: 0.15
+    subset_size: 5000
+
+training:
+  batch_size: 32
+  learning_rate: 0.001
+  epochs:
+    braking_baseline: 3
+    braking_multitask: 3
+    soc_baseline: 2
+    soc_cnn: 2
+  patience: 2
+  early_stopping: true
+  
+models:
+  braking:
+    input_dim: 7
+    cnn_channels: 32
+    lstm_hidden: 64
+    num_lstm_layers: 1
+    dropout_rate: 0.0
+    num_classes: 3
+    
+  soc:
+    input_dim: 3
+    cnn_channels: 64
+    lstm_hidden: 128
+    num_lstm_layers: 2
+    dropout_rate: 0.2
+    
+inference:
+  batch_size: 1
+  quantization: true
+  optimization: true
+  validate_inputs: true
+  
+paths:
+  data:
+    braking: "modules/braking/data"
+    soc: "modules/soc/data"
+  models:
+    braking: "modules/braking/models"
+    soc: "modules/soc/models"
+  outputs: "outputs"
+
+performance:
+  regen_efficiency: 0.65
+  soc_update_rate: 1.0
+  confidence_threshold: 0.8
+  
+logging:
+  level: "INFO"
+  save_logs: true
+  log_dir: "logs"

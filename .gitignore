@@ -1,0 +1,73 @@
+# Virtual environment
+.venv/
+venv/
+ENV/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+.Python
+
+# Test files
+*.log
+*.coverage
+.pytest_cache/
+.cache
+
+# IDE and OS files
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Training checkpoints
+training_checkpoints/
+tmp_*
+temp_*
+
+# Dataset files 
+modules/soc/data/*.csv
+modules/soc/data/*.npy
+modules/braking/data/*.npy
+
+# Model files
+# Large models (>1MB) - exclude
+modules/soc/models/ensemble_transformer.pth
+modules/soc/models/ensemble_lstm_cnn.pth
+modules/soc/models/ensemble_physics.pth
+modules/soc/models/physics_informed_soc.pth
+
+# Keep small models (<1MB) and config files
+!modules/braking/models/final_multitask_model.pth
+!modules/braking/models/best_ga_hyperparams.json
+!modules/soc/models/lstm_cnn_attention_soc.pth
+!modules/soc/models/lstm_soc_baseline.pth
+!modules/soc/models/adaptive_ensemble.json
+!modules/soc/models/physics_params.json
+!modules/soc/models/multi_objective_ga_results.json
+!modules/braking/models/lstm_cnn_attention_baseline.pth
+
+# Cognitive system data (keep these)
+shared/cognitive_state.json
+shared/driver_profiles.json
+
+# Results and reports
+training_complete_report.json
+*.results.json
+
+# Streamlit cache
+.streamlit/
+
+# Development files
+interview-questions.txt
+TODO.md
+NOTES.md
+
+Real-world electric vehicle data driving and charging/
+UAH-DRIVESET-v1/
