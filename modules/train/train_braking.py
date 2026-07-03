@@ -13,7 +13,7 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.append(str(project_root))
 
 from shared.config import get_config
-from shared.train_utils import set_seed, MetricsTracker, calculate_classification_metrics, save_model_checkpoint, create_data_loaders, EarlyStopper
+from shared.train_utils import set_seed, MetricsTracker, save_model_checkpoint, create_data_loaders, EarlyStopper
 from shared.dataset_loader import get_dataset_loader
 from modules.braking.models.multitask_lstm_cnn_attention import MultitaskLSTMCNNAttention
 from modules.braking.models.genetic_algorithm_optimizer import GeneticAlgorithmOptimizer
@@ -26,8 +26,9 @@ def compute_class_weights(y, num_classes, device):
     count of 1 to avoid division by zero.
     """
     counts = np.bincount(np.asarray(y).astype(int), minlength=num_classes).astype(np.float64)
-    counts[counts == 0] = 1.0
-    weights = counts.sum() / (num_classes * counts)
+    total = counts.sum()                               # true N (before clamping empty classes)
+    counts_safe = np.where(counts == 0, 1.0, counts)   # avoid divide-by-zero for absent classes
+    weights = total / (num_classes * counts_safe)
     return torch.tensor(weights, dtype=torch.float32, device=device)
 
 
@@ -52,10 +53,19 @@ def evaluate_classifier(model, X, y, device, batch_size=64, num_classes=3):
             targets.append(batch_y.numpy())
     preds = np.concatenate(preds)
     targets = np.concatenate(targets)
-    metrics = calculate_classification_metrics(targets, preds)
-    per_class = f1_score(targets, preds, average=None,
-                         labels=list(range(num_classes)), zero_division=0)
-    metrics['f1_per_class'] = [round(float(v), 4) for v in per_class]
+    # Pin every metric to the full label set so scores stay comparable across
+    # splits/runs even when a class (e.g. Emergency) is absent from a split.
+    labels = list(range(num_classes))
+    metrics = {
+        'accuracy': float(accuracy_score(targets, preds)),
+        'f1_macro': float(f1_score(targets, preds, average='macro',
+                                   labels=labels, zero_division=0)),
+        'f1_weighted': float(f1_score(targets, preds, average='weighted',
+                                      labels=labels, zero_division=0)),
+        'f1_per_class': [round(float(v), 4) for v in
+                         f1_score(targets, preds, average=None,
+                                  labels=labels, zero_division=0)],
+    }
     return metrics
 
 
