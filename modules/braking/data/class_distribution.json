@@ -1,0 +1,26 @@
+{
+  "class_names": {
+    "0": "Light",
+    "1": "Normal",
+    "2": "Emergency"
+  },
+  "thresholds_ms2": {
+    "normal": -1.0,
+    "emergency": -3.0
+  },
+  "train": {
+    "Light": 8509,
+    "Normal": 137,
+    "Emergency": 2
+  },
+  "val": {
+    "Light": 1821,
+    "Normal": 32,
+    "Emergency": 0
+  },
+  "test": {
+    "Light": 1827,
+    "Normal": 27,
+    "Emergency": 0
+  }
+}
