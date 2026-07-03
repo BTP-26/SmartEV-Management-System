@@ -17,9 +17,9 @@ STEP_SIZE = 25
 
 # --- Braking-intention class definition (roadmap task A1) ---
 # Three intensity classes derived from longitudinal deceleration (m/s^2):
-#   Light     : a >= NORMAL_THRESHOLD            (cruising / gentle deceleration)
-#   Normal    : EMERGENCY_THRESHOLD <= a < NORMAL_THRESHOLD
-#   Emergency : a < EMERGENCY_THRESHOLD          (hard braking)
+#   Light     : a >= DECEL_NORMAL_THRESHOLD                       (cruising / gentle deceleration)
+#   Normal    : DECEL_EMERGENCY_THRESHOLD <= a < DECEL_NORMAL_THRESHOLD
+#   Emergency : a < DECEL_EMERGENCY_THRESHOLD                     (hard braking)
 # GPS speed in the UAH-DriveSet is stored in km/h, so it is converted to m/s
 # before differentiating, making these thresholds true m/s^2 values.
 LIGHT, NORMAL, EMERGENCY = 0, 1, 2
