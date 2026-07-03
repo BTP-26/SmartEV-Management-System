@@ -31,6 +31,34 @@ def compute_class_weights(y, num_classes, device):
     return torch.tensor(weights, dtype=torch.float32, device=device)
 
 
+def evaluate_classifier(model, X, y, device, batch_size=64, num_classes=3):
+    """Shared classification evaluation harness (task A4).
+
+    Scores any MultitaskLSTMCNNAttention identically by taking argmax over the
+    class-logits head, so the baseline and multitask models are directly
+    comparable. Returns accuracy, macro/weighted F1, and per-class F1.
+    """
+    model.eval()
+    loader = DataLoader(
+        TensorDataset(torch.from_numpy(X).float(),
+                      torch.from_numpy(np.asarray(y).astype(np.int64))),
+        batch_size=batch_size, shuffle=False,
+    )
+    preds, targets = [], []
+    with torch.no_grad():
+        for batch_x, batch_y in loader:
+            class_logits, _ = model(batch_x.to(device))
+            preds.append(class_logits.argmax(dim=1).cpu().numpy())
+            targets.append(batch_y.numpy())
+    preds = np.concatenate(preds)
+    targets = np.concatenate(targets)
+    metrics = calculate_classification_metrics(targets, preds)
+    per_class = f1_score(targets, preds, average=None,
+                         labels=list(range(num_classes)), zero_division=0)
+    metrics['f1_per_class'] = [round(float(v), 4) for v in per_class]
+    return metrics
+
+
 def train_baseline_model(X_train, y_train, X_val, y_val, device="cpu", config=None):
     print("training baseline model...")
     
@@ -73,69 +101,63 @@ def train_baseline_model(X_train, y_train, X_val, y_val, device="cpu", config=No
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
     
-    criterion = nn.MSELoss()
+    # A4: single-task classification baseline trained the same way as the
+    # multitask model (correct class-logits head + weighted CrossEntropyLoss),
+    # so any difference vs the proposed model reflects architecture, not wiring.
+    class_weights = compute_class_weights(y_train_int, num_classes, device)
+    print(f"class weights (inverse-frequency): {class_weights.tolist()}")
+    criterion = nn.CrossEntropyLoss(weight=class_weights)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-    
+
+    paths = config.get_paths_config() if config else {'models': {'braking': '.'}}
+    model_path = paths['models']['braking']
+    os.makedirs(model_path, exist_ok=True)
+
     best_val_loss = float('inf')
     wait = 0
-    
+
     for epoch in range(epochs):
         model.train()
         train_loss = 0
         for batch_x, batch_y in train_loader:
             batch_x, batch_y = batch_x.to(device), batch_y.to(device)
-            
+
             optimizer.zero_grad()
-            int_output, class_output = model(batch_x)
-            int_output_single = int_output[:, 0:1]
-            batch_y_float = batch_y.float().unsqueeze(1)
-            loss = criterion(int_output_single, batch_y_float)
+            class_logits, _ = model(batch_x)              # A4: use class-logits head (was swapped)
+            loss = criterion(class_logits, batch_y)       # A4: CE on logits (was MSE on class indices)
             loss.backward()
             optimizer.step()
-            
+
             train_loss += loss.item()
-        
+
         model.eval()
         val_loss = 0
-        correct = 0
-        total = 0
-        
         with torch.no_grad():
             for batch_x, batch_y in val_loader:
                 batch_x, batch_y = batch_x.to(device), batch_y.to(device)
-                int_output, class_output = model(batch_x)
-                int_output_single = int_output[:, 0:1]
-                batch_y_float = batch_y.float().unsqueeze(1)
-                loss = criterion(int_output_single, batch_y_float)
-                val_loss += loss.item()
-                
-                predictions = int_output_single.squeeze()
-                threshold = 0.5
-                predicted_binary = (predictions > threshold).long()
-                target_binary = batch_y
-                total += batch_y.size(0)
-                correct += (predicted_binary == target_binary).sum().item()
-        
+                class_logits, _ = model(batch_x)
+                val_loss += criterion(class_logits, batch_y).item()
+
         val_loss /= len(val_loader)
         train_loss /= len(train_loader)
-        val_acc = 100 * correct / total
-        
+
         if epoch % 10 == 0:
-            print(f"Epoch {epoch}: Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%")
-        
+            print(f"Epoch {epoch}: Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}")
+
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             wait = 0
-            paths = config.get_paths_config()
-            model_path = paths['models']['braking']
-            os.makedirs(model_path, exist_ok=True)
             torch.save(model.state_dict(), os.path.join(model_path, "lstm_cnn_attention_baseline.pth"))
         else:
             wait += 1
             if wait >= patience:
                 print(f"Early stopping at epoch {epoch}")
                 break
-    
+
+    # A4: score through the shared harness (argmax on class logits)
+    val_metrics = evaluate_classifier(model, X_val, y_val_int, device, num_classes=num_classes)
+    print(f"baseline val metrics: acc={val_metrics['accuracy']:.4f} "
+          f"macro_f1={val_metrics['f1_macro']:.4f} per_class_f1={val_metrics['f1_per_class']}")
     print("baseline model training complete!")
     return model
 
@@ -272,6 +294,10 @@ def train_multitask_model(X_train, y_class_train, y_int_train, X_val, y_class_va
                 print(f"Early stopping at epoch {epoch}")
                 break
     
+    # A4: score through the same shared harness as the baseline for a fair comparison
+    val_metrics = evaluate_classifier(model, X_val, y_class_val, device, num_classes=num_classes)
+    print(f"multitask val metrics: acc={val_metrics['accuracy']:.4f} "
+          f"macro_f1={val_metrics['f1_macro']:.4f} per_class_f1={val_metrics['f1_per_class']}")
     print("Multitask model training complete!")
     return model
 
