@@ -100,10 +100,14 @@ class DatasetLoader:
                 'test_samples': X_test.shape[0],
                 'sequence_length': X_train.shape[1],
                 'features': X_train.shape[2],
-                'intention_classes': len(np.unique(y_int_train)),
-                'behavior_classes': len(np.unique(y_class_train)),
-                'intention_distribution': dict(zip(*np.unique(y_int_train, return_counts=True))),
-                'behavior_distribution': dict(zip(*np.unique(y_class_train, return_counts=True)))
+                # y_class = braking-intention classification target (Light/Normal/Emergency)
+                'num_braking_classes': int(len(np.unique(y_class_train))),
+                'braking_class_distribution': {int(k): int(v) for k, v in
+                                               zip(*np.unique(y_class_train, return_counts=True))},
+                # y_int = intensity regression target (populated in task A3; currently degenerate)
+                'intensity_unique_values': int(len(np.unique(y_int_train))),
+                'intensity_distribution': {float(k): int(v) for k, v in
+                                           zip(*np.unique(y_int_train, return_counts=True))},
             }
         
         else:
@@ -137,7 +141,7 @@ if __name__ == "__main__":
     print(f"  Val:   {braking_info['val_samples']} samples")
     print(f"  Test:  {braking_info['test_samples']} samples")
     print(f"  Shape: {braking_info['sequence_length']} x {braking_info['features']}")
-    print(f"  Intention classes: {braking_info['intention_classes']}")
-    print(f"  Behavior classes: {braking_info['behavior_classes']}")
-    print(f"  Intention distribution: {braking_info['intention_distribution']}")
-    print(f"  Behavior distribution: {braking_info['behavior_distribution']}")
+    print(f"  Braking classes: {braking_info['num_braking_classes']}")
+    print(f"  Braking class distribution: {braking_info['braking_class_distribution']}")
+    print(f"  Intensity unique values: {braking_info['intensity_unique_values']}")
+    print(f"  Intensity distribution: {braking_info['intensity_distribution']}")
