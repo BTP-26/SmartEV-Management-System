@@ -8,11 +8,26 @@ from scipy import interpolate
 import warnings
 warnings.filterwarnings('ignore')
 
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+# repo root is three levels up: modules/braking/data -> modules/braking -> modules -> root
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 DATA_DIR = os.path.join(PROJECT_ROOT, "UAH-DRIVESET-v1")
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__))
 WINDOW_SIZE = 75
 STEP_SIZE = 25
+
+# --- Braking-intention class definition (roadmap task A1) ---
+# Three intensity classes derived from longitudinal deceleration (m/s^2):
+#   Light     : a >= NORMAL_THRESHOLD            (cruising / gentle deceleration)
+#   Normal    : EMERGENCY_THRESHOLD <= a < NORMAL_THRESHOLD
+#   Emergency : a < EMERGENCY_THRESHOLD          (hard braking)
+# GPS speed in the UAH-DriveSet is stored in km/h, so it is converted to m/s
+# before differentiating, making these thresholds true m/s^2 values.
+LIGHT, NORMAL, EMERGENCY = 0, 1, 2
+BRAKING_CLASS_NAMES = {LIGHT: "Light", NORMAL: "Normal", EMERGENCY: "Emergency"}
+NUM_BRAKING_CLASSES = 3
+DECEL_NORMAL_THRESHOLD = -1.0     # m/s^2
+DECEL_EMERGENCY_THRESHOLD = -3.0  # m/s^2
+KMH_TO_MS = 1.0 / 3.6
 
 class DrivingBehavior:
     NORMAL = 0
@@ -80,45 +95,52 @@ def load_gps_data(trip_path: str) -> Tuple[np.ndarray, np.ndarray]:
     data = np.array(data)
     return data[:, 0], data[:, 1]  # time, speed
 
-def create_braking_labels(gps_speed: np.ndarray, time_gps: np.ndarray, 
+def create_braking_labels(gps_speed: np.ndarray, time_gps: np.ndarray,
                           time_acc: np.ndarray) -> np.ndarray:
-    """create braking intention labels based on gps speed changes"""
+    """Create 3-class braking-intention labels from GPS-speed deceleration.
+
+    Classes (see module-level constants): Light(0), Normal(1), Emergency(2).
+    GPS speed is assumed to be in km/h and is converted to m/s so that the
+    deceleration thresholds are expressed in m/s^2.
+    """
+    labels = np.full(len(time_acc), LIGHT, dtype=np.int64)
     if len(gps_speed) < 2:
-        return np.zeros(len(time_acc))
-    
-    # interpolate gps speed to accelerometer timestamps
+        return labels
+
+    # interpolate gps speed onto the accelerometer timeline
     try:
         # Ensure time arrays are sorted and unique
         sort_idx = np.argsort(time_gps)
         time_gps_sorted = time_gps[sort_idx]
         speed_sorted = gps_speed[sort_idx]
-        
+
         # Remove duplicates
         unique_mask = np.diff(time_gps_sorted) > 1e-6
         time_gps_unique = np.concatenate([time_gps_sorted[:1], time_gps_sorted[1:][unique_mask]])
         speed_unique = np.concatenate([speed_sorted[:1], speed_sorted[1:][unique_mask]])
-        
+
         if len(time_gps_unique) >= 2:
-            speed_interp = interpolate.interp1d(time_gps_unique, speed_unique, kind='linear', 
+            speed_interp = interpolate.interp1d(time_gps_unique, speed_unique, kind='linear',
                                               bounds_error=False, fill_value='extrapolate')
             speed_sync = speed_interp(time_acc)
         else:
-            speed_sync = np.full_like(time_acc, 0.0)
-    except:
-        speed_sync = np.full_like(time_acc, 0.0)
-    
-    # calculate acceleration from speed change
-    labels = np.zeros(len(time_acc))
-    for i in range(1, len(speed_sync)):
-        dt = time_acc[i] - time_acc[i-1]
-        if dt > 0:
-            dv = speed_sync[i] - speed_sync[i-1]
-            acceleration = dv / dt
-            
-            # braking detected if significant negative acceleration
-            if acceleration < -1.0:  # Threshold for braking detection
-                labels[i] = 1
-    
+            return labels
+    except Exception:
+        return labels
+
+    # convert km/h -> m/s, then differentiate to get longitudinal acceleration
+    speed_ms = speed_sync * KMH_TO_MS
+    for i in range(1, len(speed_ms)):
+        dt = time_acc[i] - time_acc[i - 1]
+        if dt <= 0:
+            continue
+        acceleration = (speed_ms[i] - speed_ms[i - 1]) / dt
+        if acceleration < DECEL_EMERGENCY_THRESHOLD:
+            labels[i] = EMERGENCY
+        elif acceleration < DECEL_NORMAL_THRESHOLD:
+            labels[i] = NORMAL
+        # else: remains LIGHT
+
     return labels
 
 def create_behavior_labels(behavior: str, data_length: int) -> np.ndarray:
@@ -227,6 +249,13 @@ def process_single_trip(trip_path: str) -> Tuple[Optional[np.ndarray], Optional[
         print(f"error processing {trip_path}: {e}")
         return None, None, None
 
+def _class_distribution(y: np.ndarray) -> Dict[str, int]:
+    """Return {class_name: count} for a 3-class braking label array."""
+    y = np.asarray(y).astype(int)
+    counts = np.bincount(y, minlength=NUM_BRAKING_CLASSES)
+    return {BRAKING_CLASS_NAMES[i]: int(counts[i]) for i in range(NUM_BRAKING_CLASSES)}
+
+
 def process_all_data():
     """process all uah-driveset v1 data comprehensively"""
     print("processing uah-driveset v1 data comprehensively...")
@@ -284,7 +313,7 @@ def process_all_data():
     print(f"\ndataset summary:")
     print(f"total windows: {len(X_combined)}")
     print(f"features per window: {X_combined.shape[1]} x {X_combined.shape[2]}")
-    print(f"braking events: {np.sum(y_class_combined)} ({np.mean(y_class_combined)*100:.1f}%)")
+    print(f"braking-class distribution: {_class_distribution(y_class_combined)}")
     print(f"behavior distribution: {np.unique(y_intention_combined, return_counts=True)}")
     
     # split into train/val/test (70/15/15)
@@ -337,11 +366,27 @@ def process_all_data():
     print(f"validation: {X_val_scaled.shape} samples")
     print(f"test: {X_test_scaled.shape} samples")
     
-    print(f"\nbraking label distribution:")
-    print(f"train: {np.mean(y_class_train)*100:.1f}% braking")
-    print(f"val: {np.mean(y_class_val)*100:.1f}% braking")
-    print(f"test: {np.mean(y_class_test)*100:.1f}% braking")
-    
+    # 3-class braking label distribution per split (roadmap A1 deliverable)
+    class_distribution = {
+        'class_names': BRAKING_CLASS_NAMES,
+        'thresholds_ms2': {
+            'normal': DECEL_NORMAL_THRESHOLD,
+            'emergency': DECEL_EMERGENCY_THRESHOLD,
+        },
+        'train': _class_distribution(y_class_train),
+        'val': _class_distribution(y_class_val),
+        'test': _class_distribution(y_class_test),
+    }
+    print(f"\nbraking-class distribution:")
+    for split in ('train', 'val', 'test'):
+        print(f"  {split}: {class_distribution[split]}")
+
+    import json
+    dist_path = os.path.join(OUTPUT_DIR, 'class_distribution.json')
+    with open(dist_path, 'w') as f:
+        json.dump(class_distribution, f, indent=2)
+    print(f"class distribution saved: {dist_path}")
+
     print(f"\ncomprehensive preprocessing completed successfully!")
     return True
 

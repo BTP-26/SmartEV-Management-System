@@ -13,10 +13,22 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.append(str(project_root))
 
 from shared.config import get_config
-from shared.train_utils import MetricsTracker, calculate_classification_metrics, save_model_checkpoint, create_data_loaders, EarlyStopper
+from shared.train_utils import set_seed, MetricsTracker, calculate_classification_metrics, save_model_checkpoint, create_data_loaders, EarlyStopper
 from shared.dataset_loader import get_dataset_loader
 from modules.braking.models.multitask_lstm_cnn_attention import MultitaskLSTMCNNAttention
 from modules.braking.models.genetic_algorithm_optimizer import GeneticAlgorithmOptimizer
+
+
+def compute_class_weights(y, num_classes, device):
+    """Inverse-frequency class weights for imbalanced braking classes (A1).
+
+    weight_c = N / (num_classes * count_c). Empty classes are clamped to a
+    count of 1 to avoid division by zero.
+    """
+    counts = np.bincount(np.asarray(y).astype(int), minlength=num_classes).astype(np.float64)
+    counts[counts == 0] = 1.0
+    weights = counts.sum() / (num_classes * counts)
+    return torch.tensor(weights, dtype=torch.float32, device=device)
 
 
 def train_baseline_model(X_train, y_train, X_val, y_val, device="cpu", config=None):
@@ -166,7 +178,10 @@ def train_multitask_model(X_train, y_class_train, y_int_train, X_val, y_class_va
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
     
-    criterion_cls = nn.CrossEntropyLoss()
+    num_classes = int(config.get('models.braking.num_classes', 3)) if config else 3
+    class_weights = compute_class_weights(y_class_train, num_classes, device)
+    print(f"class weights (inverse-frequency): {class_weights.tolist()}")
+    criterion_cls = nn.CrossEntropyLoss(weight=class_weights)
     criterion_reg = nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     
