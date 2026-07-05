@@ -26,6 +26,7 @@ if project_root not in sys.path:
 from modules.soc.models.lstm_cnn_attention_soc import (
     LSTMCNNAttentionSoC, train_soc_model, evaluate_soc_model
 )
+from shared.dataset_loader import get_dataset_loader
 
 
 @dataclass
@@ -526,21 +527,18 @@ class MultiObjectiveSoCGAOptimizer:
 
 def run_multi_objective_soc_ga():
     """Run multi-objective GA optimization for SoC estimation."""
-    DATA = "modules/soc/data"
-    X_train = np.load(f"{DATA}/X_train_soc.npy")
-    y_train = np.load(f"{DATA}/y_train_soc.npy")
-    X_val = np.load(f"{DATA}/X_val_soc.npy")
-    y_val = np.load(f"{DATA}/y_val_soc.npy")
+    # Load the same real, [0,1]-scaled dataset the deployed model uses, instead of the
+    # orphaned *_soc.npy convention that no preprocessing script in the repo produced.
+    dataset_loader = get_dataset_loader()
+    X_train, X_val, X_test, y_train, y_val, y_test = dataset_loader.load_soc_dataset()
 
-    # SPEEDUP: sample smaller dataset
-    sample_size = 50000
+    # SPEEDUP: sample smaller dataset (full 50-step window length is kept, matching the
+    # deployed model and this file's own _measure_inference_time/_evaluate_robustness,
+    # which already assume seq_len=50)
+    sample_size = min(50000, len(X_train))
     idx = np.random.choice(len(X_train), sample_size, replace=False)
     X_train = X_train[idx]
     y_train = y_train[idx]
-
-    # optional
-    X_train = X_train[:, :25, :]
-    X_val = X_val[:, :25, :]
 
     print(f"Train: {X_train.shape}, Val: {X_val.shape}")
 

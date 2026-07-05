@@ -24,6 +24,7 @@ if project_root not in sys.path:
 from modules.soc.models.lstm_cnn_attention_soc import (
     LSTMCNNAttentionSoC, train_soc_model, evaluate_soc_model
 )
+from shared.dataset_loader import get_dataset_loader
 
 
 class TransformerSoCModel(nn.Module):
@@ -516,26 +517,21 @@ class GAEnsembleOptimizer:
 def train_adaptive_ensemble():
     """Main function to train adaptive ensemble."""
     print("=== Training Adaptive Ensemble SoC Model ===")
-    
-    # Get project root
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
-    
-    # Load data
-    DATA = os.path.join(project_root, "modules/soc/data")
-    X_train = np.load(os.path.join(DATA, "X_train_soc.npy"))
-    y_train = np.load(os.path.join(DATA, "y_train_soc.npy"))
-    X_val = np.load(os.path.join(DATA, "X_val_soc.npy"))
-    y_val = np.load(os.path.join(DATA, "y_val_soc.npy"))
-    
-    # Use smaller dataset for faster training
-    sample_size = 30000
+
+    # Load the same real, [0,1]-scaled dataset the deployed model uses (see
+    # shared/dataset_loader.py + config/dataset_config.yaml). Previously this loaded a
+    # separate, orphaned *_soc.npy convention that no script in the repo produced.
+    dataset_loader = get_dataset_loader()
+    X_train, X_val, X_test, y_train, y_val, y_test = dataset_loader.load_soc_dataset()
+
+    # Use a smaller subset for faster training, but never truncate the sequence length -
+    # doing so silently desynced this ensemble from the deployed model's window size (50)
+    # and broke EnhancedPhysicsInformedSoC's hardcoded input_dim*25 assumption.
+    sample_size = min(30000, len(X_train))
     idx = np.random.choice(len(X_train), sample_size, replace=False)
     X_train = X_train[idx]
     y_train = y_train[idx]
-    X_train = X_train[:, :25, :]  # Reduce sequence length
-    X_val = X_val[:, :25, :]
-    
+
     print(f"Training data shape: {X_train.shape}")
     
     # Create and train ensemble

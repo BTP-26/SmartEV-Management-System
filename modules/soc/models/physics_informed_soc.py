@@ -21,6 +21,7 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from modules.soc.models.lstm_cnn_attention_soc import LSTMCNNAttentionSoC
+from shared.dataset_loader import get_dataset_loader
 
 
 @dataclass
@@ -294,7 +295,7 @@ class EnhancedPhysicsInformedSoC(nn.Module):
     """Enhanced physics-informed model with adaptive constraints."""
     
     def __init__(self, input_dim=3, hidden_dim=128, num_layers=3, dropout=0.2,
-                 physics_params: Optional[BatteryPhysicsParams] = None):
+                 seq_len=50, physics_params: Optional[BatteryPhysicsParams] = None):
         super().__init__()
         
         self.base_model = PhysicsInformedSoCModel(
@@ -302,8 +303,11 @@ class EnhancedPhysicsInformedSoC(nn.Module):
         )
         
         # Adaptive constraint learning
+        # `seq_len` must match the window size of whatever data this model consumes
+        # (config/dataset_config.yaml: soc_window_size=50). This used to be hardcoded to
+        # 25 to match an orphaned, truncated dataset convention that no longer exists.
         self.constraint_learner = nn.Sequential(
-            nn.Linear(input_dim * 25, 64),  # Flatten sequence (assuming 25 timesteps)
+            nn.Linear(input_dim * seq_len, 64),  # Flatten sequence
             nn.ReLU(),
             nn.Linear(64, 32),
             nn.ReLU(),
@@ -455,21 +459,18 @@ def create_physics_informed_model():
     # Test physics constraints
     test_physics_constraints()
     
-    # Load data
-    DATA = "modules/soc/data"
-    X_train = np.load(f"{DATA}/X_train_soc.npy")
-    y_train = np.load(f"{DATA}/y_train_soc.npy")
-    X_val = np.load(f"{DATA}/X_val_soc.npy")
-    y_val = np.load(f"{DATA}/y_val_soc.npy")
-    
-    # Use smaller dataset for faster training
-    sample_size = 20000
+    # Load the same real, [0,1]-scaled dataset the deployed model uses, instead of the
+    # orphaned *_soc.npy convention that no preprocessing script in the repo produced.
+    dataset_loader = get_dataset_loader()
+    X_train, X_val, X_test, y_train, y_val, y_test = dataset_loader.load_soc_dataset()
+
+    # Use a smaller subset for faster training; keep the full window length (50) so the
+    # model matches the deployed dataset shape instead of a truncated 25-step convention.
+    sample_size = min(20000, len(X_train))
     idx = np.random.choice(len(X_train), sample_size, replace=False)
     X_train = X_train[idx]
     y_train = y_train[idx]
-    X_train = X_train[:, :25, :]
-    X_val = X_val[:, :25, :]
-    
+
     print(f"Training data shape: {X_train.shape}")
     
     # Create physics parameters
