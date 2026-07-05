@@ -31,10 +31,12 @@ training_checkpoints/
 tmp_*
 temp_*
 
-# Dataset files 
+# Dataset files
 modules/soc/data/*.csv
 modules/soc/data/*.npy
 modules/braking/data/*.npy
+modules/braking/data/horizon/*.npy
+modules/braking/data/horizon/*.pkl
 
 # Model files
 # Large models (>1MB) - exclude
