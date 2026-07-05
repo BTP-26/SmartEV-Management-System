@@ -1,4 +1,5 @@
 import os
+import json
 import numpy as np
 import pandas as pd
 import h5py
@@ -13,7 +14,24 @@ DATA_DIR = os.path.join(PROJECT_ROOT, "Real-world electric vehicle data driving 
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__))
 WINDOW_SIZE = 50
 STEP_SIZE = 25  # larger step size for faster processing
-CAPACITY_AH = 2.0
+CAPACITY_AH = 240.0  # Mendeley pack capacity (see fig_6_11_12.m: `Cap = 240`), not a single-cell value
+
+# SoC is recorded as a physical percentage (README: "SoC [%]"), so the [0,1] scale used by
+# the model's Sigmoid head is a fixed affine transform (divide by 100), not a data-driven
+# min-max fit. Using the observed min/max of a given split would make 0/1 mean different
+# physical SoC levels across subsets and would leak split-specific range into the scale.
+SOC_MIN_PERCENT = 0.0
+SOC_MAX_PERCENT = 100.0
+
+
+def scale_soc(soc_percent: np.ndarray) -> np.ndarray:
+    """Map raw %SoC (0-100) to the [0,1] range consumed by the model's Sigmoid head."""
+    return (soc_percent - SOC_MIN_PERCENT) / (SOC_MAX_PERCENT - SOC_MIN_PERCENT)
+
+
+def inverse_scale_soc(soc_unit: np.ndarray) -> np.ndarray:
+    """Inverse of scale_soc: map [0,1] model output/target back to %SoC."""
+    return soc_unit * (SOC_MAX_PERCENT - SOC_MIN_PERCENT) + SOC_MIN_PERCENT
 
 def load_ev_data(folder_path: str) -> Dict[str, np.ndarray]:
     """load ev data from matlab .mat file using h5py"""
@@ -177,8 +195,15 @@ def process_all_data():
     
     print(f"Total samples: {X_combined.shape[0]}")
     print(f"Feature shape: {X_combined.shape[1:]}")
-    print(f"SoC range: [{y_combined.min():.3f}, {y_combined.max():.3f}]")
-    
+    print(f"SoC range (raw %): [{y_combined.min():.3f}, {y_combined.max():.3f}]")
+
+    # B1 fix: targets were previously saved on the raw 0-100 % scale while the model head
+    # is a Sigmoid producing [0,1], which silently produced RMSE~73 / MAPE~98% downstream.
+    # Scale once, here, so every consumer sees [0,1] and evaluate_soc.py inverse-transforms
+    # back to % for reporting.
+    y_combined = scale_soc(y_combined)
+    print(f"SoC range (scaled): [{y_combined.min():.3f}, {y_combined.max():.3f}]")
+
     # Split into train/val/test
     X_temp, X_test, y_temp, y_test = train_test_split(
         X_combined, y_combined, test_size=0.2, random_state=42
@@ -186,7 +211,7 @@ def process_all_data():
     X_train, X_val, y_train, y_val = train_test_split(
         X_temp, y_temp, test_size=0.25, random_state=42  # 0.25 * 0.8 = 0.2
     )
-    
+
     # Save datasets
     np.save(os.path.join(OUTPUT_DIR, 'X_train_real.npy'), X_train)
     np.save(os.path.join(OUTPUT_DIR, 'X_val_real.npy'), X_val)
@@ -194,12 +219,24 @@ def process_all_data():
     np.save(os.path.join(OUTPUT_DIR, 'y_train_real.npy'), y_train)
     np.save(os.path.join(OUTPUT_DIR, 'y_val_real.npy'), y_val)
     np.save(os.path.join(OUTPUT_DIR, 'y_test_real.npy'), y_test)
-    
+
+    # Persist the scale so every downstream consumer (evaluate_soc.py, ensemble, physics
+    # model) can invert predictions/targets back to % SoC through one shared definition.
+    soc_scale_meta = {
+        "soc_min_percent": SOC_MIN_PERCENT,
+        "soc_max_percent": SOC_MAX_PERCENT,
+        "scaled_range": "[0, 1]",
+        "transform": "scaled = (raw_percent - soc_min_percent) / (soc_max_percent - soc_min_percent)",
+        "inverse_transform": "raw_percent = scaled * (soc_max_percent - soc_min_percent) + soc_min_percent",
+    }
+    with open(os.path.join(OUTPUT_DIR, 'soc_scale.json'), 'w') as f:
+        json.dump(soc_scale_meta, f, indent=2)
+
     print(f"Saved real-world EV datasets:")
     print(f"  Train: {X_train.shape[0]} samples")
     print(f"  Val:   {X_val.shape[0]} samples")
     print(f"  Test:  {X_test.shape[0]} samples")
-    
+
     return X_train, X_val, X_test, y_train, y_val, y_test
 
 if __name__ == "__main__":
