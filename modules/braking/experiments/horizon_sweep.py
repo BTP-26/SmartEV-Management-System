@@ -74,8 +74,15 @@ def load_pooled_raw():
     """Pooled UNSCALED windows + driver ids for leave-one-driver-out, so the
     scaler is fit per fold (a global scaler would leak the held-out driver)."""
     def cat(name):
-        return np.concatenate([np.load(os.path.join(DATA_DIR, f'{name}_{sp}.npy'))
-                               for sp in ('train', 'val', 'test')])
+        arrs = []
+        for sp in ('train', 'val', 'test'):
+            path = os.path.join(DATA_DIR, f'{name}_{sp}.npy')
+            if not os.path.exists(path):
+                raise FileNotFoundError(
+                    f"Missing {path}. Run `python modules/braking/data/make_horizon_dataset.py` "
+                    f"to generate the Xraw_*/driver_* arrays before using --lodo.")
+            arrs.append(np.load(path))
+        return np.concatenate(arrs)
     return cat('Xraw'), cat('driver')
 
 
@@ -268,30 +275,38 @@ def run_lodo(epochs, seed, debug, multitask=False, lam=0.3):
     method = 'multitask' if multitask else 'model'
     print(f"LODO over drivers {drivers} | method={method}")
 
-    rows, summary = [], []
-    for hi, h in enumerate(horizons):
-        y_all = load_labels_all(hi)
-        yint_all = load_intensity_all(hi) if multitask else None
-        f1s = []
-        for d in drivers:
-            te = driver_all == d
-            tr = ~te
-            X_tr, y_tr = X_all[tr], y_all[tr]
-            if debug:
-                X_tr, y_tr = X_tr[:512], y_tr[:512]
-            yint_tr = yint_all[tr][:len(X_tr)] if multitask else None
-            X_tr, X_te = _scale_fold(X_tr, X_all[te])   # fit scaler on this fold's train only
+    # labels don't depend on the fold, so load every horizon's arrays once
+    labels = [load_labels_all(hi) for hi in range(len(horizons))]
+    intens = [load_intensity_all(hi) for hi in range(len(horizons))] if multitask else None
+
+    rows = []
+    f1_by_h = {h: [] for h in horizons}
+    for d in drivers:
+        te = driver_all == d
+        tr = ~te
+        # scale once per held-out driver (the split is identical across horizons)
+        X_tr_raw = X_all[tr][:512] if debug else X_all[tr]
+        X_tr, X_te = _scale_fold(X_tr_raw, X_all[te])
+        n_tr = len(X_tr)
+        for hi, h in enumerate(horizons):
+            y_tr = labels[hi][tr][:n_tr]
+            y_ev = labels[hi][te]
+            yint_tr = intens[hi][tr][:n_tr] if multitask else None
             try:
                 preds, probs, _ = _train_and_predict(
                     X_tr, y_tr, X_te, _device(), 1 if debug else epochs,
                     32, 1e-3, seed, yint_tr=yint_tr, lam=lam)
-                m = score_hard(y_all[te], preds, probs)
+                m = score_hard(y_ev, preds, probs)
                 m.update({'horizon_s': h, 'method': method, 'driver': d})
-                rows.append(m); f1s.append(m['f1_pos'])
-                print(f"  [{h}s] hold-out D{d}: F1_pos={m['f1_pos']:.3f} "
+                rows.append(m); f1_by_h[h].append(m['f1_pos'])
+                print(f"  D{d} [{h}s]: F1_pos={m['f1_pos']:.3f} "
                       f"P={m['precision_pos']:.3f} R={m['recall_pos']:.3f}")
             except Exception as exc:  # pragma: no cover
-                print(f"  [{h}s] hold-out D{d} failed: {exc}")
+                print(f"  D{d} [{h}s] failed: {exc}")
+
+    summary = []
+    for h in horizons:
+        f1s = f1_by_h[h]
         if f1s:
             mean, std = float(np.mean(f1s)), float(np.std(f1s))
             summary.append({'horizon_s': h, 'method': method, 'f1_pos_mean': round(mean, 4),
