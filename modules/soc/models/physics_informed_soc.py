@@ -1,6 +1,14 @@
 
-# Physics-Informed SoC Estimation with Battery Constraints
-# Integrates State of Health (SoH), thermal dynamics, and electrochemical constraints
+# Constraint-Regularised SoC Estimation with Battery Constraints
+# Integrates State of Health (SoH), thermal dynamics, and electrochemical constraints.
+#
+# This was previously described as "Physics-Informed" (PINN-style). That framing implied
+# the constraints below were physically calibrated; in fact only the electrochemical/
+# voltage parameters are grounded in real data (see _load_identified_battery_params()
+# and modules/soc/models/battery_rls_identification.py, roadmap B2). The SoH and thermal
+# parameters are not identifiable from this dataset (no capacity-fade/aging cycles or
+# direct thermal measurements are recorded) and remain literature-typical placeholders -
+# labeled as such below rather than presented as calibrated.
 
 
 import json
@@ -23,32 +31,88 @@ if project_root not in sys.path:
 from modules.soc.models.lstm_cnn_attention_soc import LSTMCNNAttentionSoC
 from shared.dataset_loader import get_dataset_loader
 
+IDENTIFIED_PARAMS_PATH = os.path.join(os.path.dirname(__file__), "battery_params_identified.json")
+
+
+def _load_identified_battery_params() -> Dict[str, float]:
+    """Load the RLS-identified pack parameters (see battery_rls_identification.py / B2).
+
+    Falls back to the last values that script produced (checked into this repo as the
+    defaults below) if battery_params_identified.json isn't present in a fresh checkout,
+    so BatteryPhysicsParams() never silently reverts to the old 18650-cell numbers.
+    """
+    defaults = {
+        "internal_resistance": 0.0246,  # R0, Ohm - pack-level, RLS mean across cycles
+        "r1_ohm": 0.0513,
+        "c1_farad": 847.8,
+        "nominal_capacity": 240.0,  # Ah - see CAPACITY_AH in preprocess_real_data.py
+        "min_voltage": 363.75,
+        "max_voltage": 456.25,
+        "nominal_voltage": 424.22,
+        "max_charge_rate": 1.0,  # C-rate, p99.9 of observed charge current / capacity
+        "max_discharge_rate": 3.45,  # C-rate, p99.9 of observed discharge current / capacity
+    }
+    if not os.path.exists(IDENTIFIED_PARAMS_PATH):
+        print(f"warning: {IDENTIFIED_PARAMS_PATH} not found; using last-known RLS "
+              "results checked into this file. Run battery_rls_identification.py to regenerate.")
+        return defaults
+
+    with open(IDENTIFIED_PARAMS_PATH) as f:
+        data = json.load(f)
+    defaults["internal_resistance"] = data["ecm_r0_ohm"]["mean"]
+    defaults["r1_ohm"] = data["ecm_r1_ohm"]["mean"]
+    defaults["c1_farad"] = data["ecm_c1_farad"]["mean"]
+    defaults["nominal_capacity"] = data["provenance"]["capacity_ah"]
+    defaults["min_voltage"] = data["voltage"]["min_v"]
+    defaults["max_voltage"] = data["voltage"]["max_v"]
+    defaults["nominal_voltage"] = data["voltage"]["mean_v"]
+    if data["current"].get("max_charge_c_rate"):
+        defaults["max_charge_rate"] = data["current"]["max_charge_c_rate"]
+    if data["current"].get("max_discharge_c_rate"):
+        defaults["max_discharge_rate"] = data["current"]["max_discharge_c_rate"]
+    return defaults
+
+
+_IDENTIFIED = _load_identified_battery_params()
+
 
 @dataclass
 class BatteryPhysicsParams:
-    """Battery physics parameters for constraints."""
-    # State of Health parameters
+    """Battery constraint parameters.
+
+    Electrochemical/voltage fields are identified from real pack-level data (Mendeley
+    "Real-world electric vehicle data driving and charging" - see
+    battery_rls_identification.py). SoH/thermal fields are NOT identifiable from this
+    dataset (no aging cycles or direct thermal measurements) and are literature-typical
+    placeholders, not calibrated values - flagged individually below.
+    """
+    # State of Health parameters (NOT identifiable from this dataset - placeholders)
     soh_nominal: float = 1.0  # Nominal state of health
     soh_degradation_rate: float = 0.0001  # Per cycle degradation
     soh_temp_factor: float = 0.02  # Temperature effect on degradation
-    
-    # Thermal parameters
+
+    # Thermal parameters (NOT identifiable from this dataset - placeholders)
     nominal_temp: float = 25.0  # Nominal temperature (°C)
     temp_coefficient: float = -0.003  # Voltage temperature coefficient
     thermal_resistance: float = 0.1  # Thermal resistance (°C/W)
     heat_capacity: float = 1000  # Heat capacity (J/K)
-    
-    # Electrochemical parameters
-    nominal_capacity: float = 100.0  # Ah
-    internal_resistance: float = 0.05  # Ohms
-    max_charge_rate: float = 2.0  # C-rate
-    max_discharge_rate: float = 3.0  # C-rate
-    
-    # Voltage limits
-    min_voltage: float = 2.5  # V
-    max_voltage: float = 4.2  # V
-    nominal_voltage: float = 3.7  # V
-    
+
+    # Electrochemical parameters - identified from real pack data (see module docstring)
+    nominal_capacity: float = _IDENTIFIED["nominal_capacity"]  # Ah (pack-level)
+    internal_resistance: float = _IDENTIFIED["internal_resistance"]  # R0, Ohm (pack-level)
+    max_charge_rate: float = _IDENTIFIED["max_charge_rate"]  # C-rate
+    max_discharge_rate: float = _IDENTIFIED["max_discharge_rate"]  # C-rate
+
+    # First-order Thevenin RC branch (R1, C1), identified via RLS - see
+    # battery_rls_identification.py for the ARX<->ECM derivation and per-cycle fits.
+    r1_ohm: float = _IDENTIFIED["r1_ohm"]
+    c1_farad: float = _IDENTIFIED["c1_farad"]
+
+    # Voltage limits - pack-level, observed extrema/mean (NOT single-cell values)
+    min_voltage: float = _IDENTIFIED["min_voltage"]  # V
+    max_voltage: float = _IDENTIFIED["max_voltage"]  # V
+    nominal_voltage: float = _IDENTIFIED["nominal_voltage"]  # V
+
     def to_dict(self) -> Dict:
         return {
             'soh_nominal': self.soh_nominal,
@@ -62,6 +126,8 @@ class BatteryPhysicsParams:
             'internal_resistance': self.internal_resistance,
             'max_charge_rate': self.max_charge_rate,
             'max_discharge_rate': self.max_discharge_rate,
+            'r1_ohm': self.r1_ohm,
+            'c1_farad': self.c1_farad,
             'min_voltage': self.min_voltage,
             'max_voltage': self.max_voltage,
             'nominal_voltage': self.nominal_voltage
@@ -145,7 +211,7 @@ class BatteryPhysicsConstraints:
 
 
 class PhysicsInformedSoCModel(nn.Module):
-    """Physics-informed neural network for SoC estimation with constraints."""
+    """Constraint-regularised neural network for SoC estimation."""
     
     def __init__(self, input_dim=3, hidden_dim=128, num_layers=3, dropout=0.2, 
                  physics_params: Optional[BatteryPhysicsParams] = None):
@@ -169,7 +235,7 @@ class PhysicsInformedSoCModel(nn.Module):
         
         self.feature_extractor = nn.Sequential(*layers)
         
-        # Physics-informed layers
+        # Constraint-regularised layers
         self.physics_processor = nn.Sequential(
             nn.Linear(hidden_dim, 64),
             nn.ReLU(),
@@ -267,7 +333,7 @@ class PhysicsInformedSoCModel(nn.Module):
         # Aggregate neural features
         aggregated_neural = torch.mean(torch.stack(neural_features, dim=1), dim=1)
         
-        # Process through physics-informed layers
+        # Process through constraint-regularised layers
         physics_neural = self.physics_processor(aggregated_neural)
         
         # Extract physics features
@@ -292,16 +358,16 @@ class PhysicsInformedSoCModel(nn.Module):
 
 
 class EnhancedPhysicsInformedSoC(nn.Module):
-    """Enhanced physics-informed model with adaptive constraints."""
-    
+    """Enhanced constraint-regularised model with adaptive constraints."""
+
     def __init__(self, input_dim=3, hidden_dim=128, num_layers=3, dropout=0.2,
                  seq_len=50, physics_params: Optional[BatteryPhysicsParams] = None):
         super().__init__()
-        
+
         self.base_model = PhysicsInformedSoCModel(
             input_dim, hidden_dim, num_layers, dropout, physics_params
         )
-        
+
         # Adaptive constraint learning
         # `seq_len` must match the window size of whatever data this model consumes
         # (config/dataset_config.yaml: soc_window_size=50). This used to be hardcoded to
@@ -324,7 +390,7 @@ class EnhancedPhysicsInformedSoC(nn.Module):
         )
     
     def forward(self, x):
-        # Base physics-informed prediction
+        # Base constraint-regularised prediction
         base_pred = self.base_model(x)
         
         # Learn constraint weights from data
@@ -347,8 +413,8 @@ class EnhancedPhysicsInformedSoC(nn.Module):
 def train_physics_informed_model(X_train, y_train, X_val, y_val, 
                                physics_params: Optional[BatteryPhysicsParams] = None,
                                epochs=10, batch_size=64, lr=0.001, device='cpu'):
-    """Train physics-informed SoC model."""
-    print("Training Physics-Informed SoC Model...")
+    """Train constraint-regularised SoC model."""
+    print("Training Constraint-Regularised SoC Model...")
     
     # Create model
     model = EnhancedPhysicsInformedSoC(
@@ -453,8 +519,8 @@ def test_physics_constraints():
 
 
 def create_physics_informed_model():
-    """Main function to create and test physics-informed model."""
-    print("=== Creating Physics-Informed SoC Model ===")
+    """Main function to create and test the constraint-regularised SoC model."""
+    print("=== Creating Constraint-Regularised SoC Model ===")
     
     # Test physics constraints
     test_physics_constraints()
@@ -488,12 +554,12 @@ def create_physics_informed_model():
     with open("modules/soc/models/physics_params.json", "w") as f:
         json.dump(physics_params.to_dict(), f, indent=4)
     
-    print(f"Physics-informed model trained with RMSE: {best_rmse:.4f}")
+    print(f"Constraint-regularised model trained with RMSE: {best_rmse:.4f}")
     print("Physics parameters saved!")
-    
+
     return model, physics_params
 
 
 if __name__ == "__main__":
     model, params = create_physics_informed_model()
-    print("Physics-informed SoC model created successfully!")
+    print("Constraint-regularised SoC model created successfully!")
