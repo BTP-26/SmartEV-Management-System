@@ -1,4 +1,4 @@
-"""Build the binary braking-anticipation dataset for the horizon sweep (task A2/A3).
+"""Build the binary braking-anticipation dataset for the horizon sweep (A2/A3/A5).
 
 Task definition (decided after data analysis of UAH-DriveSet, which contains no
 graded/emergency braking): for a window whose input ends at time t, predict
@@ -8,9 +8,11 @@ next Delta s"). A braking event is a sample with longitudinal deceleration
 the look-ahead, so the task is leak-free (Reviewer 3.1).
 
 A3 adds an auxiliary regression target per window: the normalised peak
-deceleration magnitude in the look-ahead window (how hard braking will be) -
-the continuous quantity the binary label is a threshold of. This replaces the
-all-zero intensity target so the multitask regression head has something to learn.
+deceleration magnitude in the look-ahead window (how hard braking will be).
+
+A5 splits by whole trip (no window from one trip appears in two splits) and
+records each window's driver so the sweep can run leave-one-driver-out (Reviewer
+3.2). This removes the window-overlap leakage of a random split.
 
 Per window we also emit two non-ML floor baselines (Reviewer 3.1 / 4.2):
   * rule    : 1 if the vehicle is already braking anywhere in the INPUT window.
@@ -22,8 +24,9 @@ Outputs (regenerable; .npy git-ignored) -> modules/braking/data/horizon/:
   yint_h{idx}_{split}.npy    intensity target per horizon (normalised peak decel)
   rule_pred_{split}.npy      threshold-rule floor prediction
   persist_pred_{split}.npy   persistence floor prediction
+  driver_{split}.npy         driver id per window (for leave-one-driver-out)
   scaler.pkl                 StandardScaler fit on train
-  horizons.json              manifest (horizons, positive rates, distributions)
+  horizons.json              manifest (horizons, split method, distributions)
 
 Additive: does NOT touch the Stage-1 y_class_*_real.npy files.
 """
@@ -32,7 +35,6 @@ import sys
 import json
 import pickle
 import numpy as np
-from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
@@ -44,10 +46,11 @@ from modules.braking.data.preprocess_real_data import (  # noqa: E402
     synchronize_sensor_data, compute_deceleration,
 )
 
-# --- A2/A3 configuration (explicit; can move to config/default.yaml later) ---
+# --- A2/A3/A5 configuration (explicit; can move to config/default.yaml later) ---
 HORIZONS_S = [0.5, 1.0, 2.0, 3.0]   # look-ahead lead times Delta (seconds)
 BRAKE_THRESHOLD = -1.0              # deceleration (m/s^2) that counts as braking
 MAX_DECEL_MS2 = 3.0                 # scale for the intensity target (m/s^2 -> [0,1])
+SPLIT_FRACS = (0.70, 0.15, 0.15)    # train / val / test, by window count
 RANDOM_STATE = 42
 CLASS_NAMES = {0: "NoBrake", 1: "Brake"}
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), 'horizon')
@@ -107,15 +110,59 @@ def _windows_for_trip(features, decel, braking, horizon_samps):
     return out_X, out_y, out_int, out_rule, out_persist
 
 
-def build():
-    print("Building binary braking-anticipation dataset (A2/A3)...")
-    print(f"  look-ahead horizons (s): {HORIZONS_S}")
+def _trip_level_split(trip_ids, y_ref, fracs=SPLIT_FRACS, seed=RANDOM_STATE):
+    """Assign whole trips to train/val/test by window-count target.
 
-    all_X, all_y, all_int, all_rule, all_persist, dts = [], [], [], [], [], []
+    Greedy allocation by largest remaining deficit keeps split sizes close to
+    `fracs`; a positive-class safeguard moves a braking trip into val/test if a
+    random draw leaves them with none (braking is rare). Returns index arrays and
+    the trip->split assignment.
+    """
+    rng = np.random.default_rng(seed)
+    trips = np.unique(trip_ids)
+    rng.shuffle(trips)
+    total = len(trip_ids)
+    targets = dict(zip(('train', 'val', 'test'), [f * total for f in fracs]))
+    assigned = {'train': [], 'val': [], 'test': []}
+    counts = {'train': 0, 'val': 0, 'test': 0}
+    for t in trips:
+        split = max(('train', 'val', 'test'), key=lambda k: targets[k] - counts[k])
+        assigned[split].append(t)
+        counts[split] += int((trip_ids == t).sum())
+
+    def positives(split):
+        return int(y_ref[np.isin(trip_ids, assigned[split])].sum())
+
+    for split in ('val', 'test'):
+        if positives(split) == 0:
+            for t in list(assigned['train']):
+                if y_ref[trip_ids == t].sum() > 0 and positives('train') > 0:
+                    assigned['train'].remove(t)
+                    assigned[split].append(t)
+                    break
+
+    # leakage guard: every trip lives in exactly one split
+    trip_sets = {s: set(v) for s, v in assigned.items()}
+    assert not (trip_sets['train'] & trip_sets['val']), "trip leak train/val"
+    assert not (trip_sets['train'] & trip_sets['test']), "trip leak train/test"
+    assert not (trip_sets['val'] & trip_sets['test']), "trip leak val/test"
+
+    idx = {s: np.where(np.isin(trip_ids, assigned[s]))[0] for s in assigned}
+    return idx['train'], idx['val'], idx['test'], assigned
+
+
+def build():
+    print("Building binary braking-anticipation dataset (A2/A3/A5)...")
+    print(f"  look-ahead horizons (s): {HORIZONS_S} | split: trip-level {SPLIT_FRACS}")
+
+    all_X, all_y, all_int, all_rule, all_persist = [], [], [], [], []
+    all_trip, all_driver, dts = [], [], []
+    trip_id = 0
     for driver in sorted(os.listdir(DATA_DIR)):
         driver_path = os.path.join(DATA_DIR, driver)
         if not os.path.isdir(driver_path) or not driver.startswith('D'):
             continue
+        driver_num = int(driver[1:]) if driver[1:].isdigit() else 0
         for trip in sorted(os.listdir(driver_path)):
             trip_path = os.path.join(driver_path, trip)
             if not os.path.isdir(trip_path):
@@ -129,7 +176,10 @@ def build():
             if Xw:
                 all_X.extend(Xw); all_y.extend(yw); all_int.extend(iw)
                 all_rule.extend(rw); all_persist.extend(pw)
+                all_trip.extend([trip_id] * len(Xw))
+                all_driver.extend([driver_num] * len(Xw))
                 dts.append(dt)
+            trip_id += 1
 
     if not all_X:
         raise ValueError("No windows produced - check dataset path / horizon settings.")
@@ -139,18 +189,13 @@ def build():
     yint = np.asarray(all_int, dtype=np.float32)       # (Nw, n_horizons)
     rule = np.asarray(all_rule, dtype=np.int64)
     persist = np.asarray(all_persist, dtype=np.int64)
-    print(f"  total windows: {len(X)}  |  median trip dt: {np.median(dts):.4f}s")
+    trip_ids = np.asarray(all_trip, dtype=np.int64)
+    drivers = np.asarray(all_driver, dtype=np.int64)
+    print(f"  total windows: {len(X)} from {len(np.unique(trip_ids))} trips, "
+          f"{len(np.unique(drivers))} drivers | median dt: {np.median(dts):.4f}s")
 
-    # Stratify on the longest-horizon label (most positives) so both classes
-    # appear in every split. A5 will replace this with trip-level splitting.
-    strat_ref = y[:, -1]
-    stratify = strat_ref if np.bincount(strat_ref, minlength=2).min() >= 2 else None
-    idx = np.arange(len(X))
-    idx_tr, idx_tmp = train_test_split(idx, test_size=0.30, random_state=RANDOM_STATE, stratify=stratify)
-    strat_tmp = strat_ref[idx_tmp] if stratify is not None else None
-    if strat_tmp is not None and np.bincount(strat_tmp, minlength=2).min() < 2:
-        strat_tmp = None
-    idx_val, idx_te = train_test_split(idx_tmp, test_size=0.50, random_state=RANDOM_STATE, stratify=strat_tmp)
+    # Trip-level split on the longest-horizon label (most positives).
+    idx_tr, idx_val, idx_te, assigned = _trip_level_split(trip_ids, y[:, -1])
     splits = {'train': idx_tr, 'val': idx_val, 'test': idx_te}
 
     scaler = StandardScaler()
@@ -166,17 +211,20 @@ def build():
         'task': 'binary_braking_anticipation',
         'positive_definition': f'braking event (decel < {BRAKE_THRESHOLD} m/s^2) within next Delta s',
         'intensity_definition': f'peak deceleration magnitude in look-ahead, normalised by {MAX_DECEL_MS2} m/s^2',
+        'split_method': 'trip-level (no trip spans two splits)',
         'horizons_s': HORIZONS_S,
         'class_names': CLASS_NAMES,
         'window_size': WINDOW_SIZE,
         'step_size': STEP_SIZE,
         'total_windows': int(len(X)),
+        'trips_per_split': {s: len(v) for s, v in assigned.items()},
         'label_distribution': {},
     }
     for split, sidx in splits.items():
         np.save(os.path.join(OUTPUT_DIR, f'X_{split}.npy'), scale(X[sidx]))
         np.save(os.path.join(OUTPUT_DIR, f'rule_pred_{split}.npy'), rule[sidx])
         np.save(os.path.join(OUTPUT_DIR, f'persist_pred_{split}.npy'), persist[sidx])
+        np.save(os.path.join(OUTPUT_DIR, f'driver_{split}.npy'), drivers[sidx])
         manifest['label_distribution'][split] = {}
         for hi, h in enumerate(HORIZONS_S):
             yh = y[sidx, hi]
@@ -193,10 +241,11 @@ def build():
     with open(os.path.join(OUTPUT_DIR, 'horizons.json'), 'w') as f:
         json.dump(manifest, f, indent=2)
 
-    print("  Brake rate / mean intensity by look-ahead (train):")
+    print(f"  trips per split: {manifest['trips_per_split']}")
+    print("  Brake rate by look-ahead (test):")
     for h in HORIZONS_S:
-        d = manifest['label_distribution']['train'][f'{h}s']
-        print(f"    {h}s: rate={d['positive_rate']:.3f}  intensity_mean={d['intensity_mean']:.3f}")
+        d = manifest['label_distribution']['test'][f'{h}s']
+        print(f"    {h}s: rate={d['positive_rate']:.3f}  Brake={d['Brake']}")
     print(f"  saved to: {OUTPUT_DIR}")
     print("Done.")
     return True
