@@ -37,6 +37,7 @@ modules/soc/data/*.npy
 modules/braking/data/*.npy
 modules/braking/data/horizon/*.npy
 modules/braking/data/horizon/*.pkl
+modules/braking/experiments/results/
 
 # Model files
 # Large models (>1MB) - exclude
