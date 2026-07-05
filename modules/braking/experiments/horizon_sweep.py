@@ -31,6 +31,7 @@ import argparse
 import numpy as np
 from sklearn.metrics import (accuracy_score, precision_recall_fscore_support,
                              average_precision_score)
+from sklearn.preprocessing import StandardScaler
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 sys.path.insert(0, PROJECT_ROOT)
@@ -67,6 +68,25 @@ def load_all():
         return np.concatenate([np.load(os.path.join(DATA_DIR, f'{name}_{sp}.npy'))
                                for sp in ('train', 'val', 'test')])
     return cat('X'), cat('rule_pred'), cat('persist_pred'), cat('driver')
+
+
+def load_pooled_raw():
+    """Pooled UNSCALED windows + driver ids for leave-one-driver-out, so the
+    scaler is fit per fold (a global scaler would leak the held-out driver)."""
+    def cat(name):
+        return np.concatenate([np.load(os.path.join(DATA_DIR, f'{name}_{sp}.npy'))
+                               for sp in ('train', 'val', 'test')])
+    return cat('Xraw'), cat('driver')
+
+
+def _scale_fold(X_tr, X_te):
+    """Fit a StandardScaler on the fold's training windows only, apply to both."""
+    nf = X_tr.shape[2]
+    scaler = StandardScaler().fit(X_tr.reshape(-1, nf))
+
+    def apply(a):
+        return scaler.transform(a.reshape(-1, nf)).reshape(a.shape).astype(np.float32)
+    return apply(X_tr), apply(X_te)
 
 
 def load_labels_all(hi):
@@ -243,7 +263,7 @@ def run_lodo(epochs, seed, debug, multitask=False, lam=0.3):
     """Leave-one-driver-out: train on 5 drivers, test on the held-out one, per
     horizon, and report mean +/- std positive-class F1 across drivers (Reviewer 3.2)."""
     horizons = load_manifest()['horizons_s']
-    X_all, _, _, driver_all = load_all()
+    X_all, driver_all = load_pooled_raw()   # unscaled; scaled per fold below
     drivers = sorted(int(d) for d in np.unique(driver_all))
     method = 'multitask' if multitask else 'model'
     print(f"LODO over drivers {drivers} | method={method}")
@@ -260,9 +280,10 @@ def run_lodo(epochs, seed, debug, multitask=False, lam=0.3):
             if debug:
                 X_tr, y_tr = X_tr[:512], y_tr[:512]
             yint_tr = yint_all[tr][:len(X_tr)] if multitask else None
+            X_tr, X_te = _scale_fold(X_tr, X_all[te])   # fit scaler on this fold's train only
             try:
                 preds, probs, _ = _train_and_predict(
-                    X_tr, y_tr, X_all[te], _device(), 1 if debug else epochs,
+                    X_tr, y_tr, X_te, _device(), 1 if debug else epochs,
                     32, 1e-3, seed, yint_tr=yint_tr, lam=lam)
                 m = score_hard(y_all[te], preds, probs)
                 m.update({'horizon_s': h, 'method': method, 'driver': d})

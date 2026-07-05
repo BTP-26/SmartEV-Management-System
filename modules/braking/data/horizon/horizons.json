@@ -24,15 +24,15 @@
   "label_distribution": {
     "train": {
       "0.5s": {
-        "NoBrake": 8576,
-        "Brake": 175,
-        "positive_rate": 0.02,
+        "NoBrake": 8574,
+        "Brake": 177,
+        "positive_rate": 0.0202,
         "intensity_mean": 0.0565
       },
       "1.0s": {
-        "NoBrake": 8533,
-        "Brake": 218,
-        "positive_rate": 0.0249,
+        "NoBrake": 8532,
+        "Brake": 219,
+        "positive_rate": 0.025,
         "intensity_mean": 0.0693
       },
       "2.0s": {
@@ -42,9 +42,9 @@
         "intensity_mean": 0.0896
       },
       "3.0s": {
-        "NoBrake": 8343,
-        "Brake": 408,
-        "positive_rate": 0.0466,
+        "NoBrake": 8341,
+        "Brake": 410,
+        "positive_rate": 0.0469,
         "intensity_mean": 0.1066
       }
     },
