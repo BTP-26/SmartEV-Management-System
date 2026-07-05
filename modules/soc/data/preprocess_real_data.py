@@ -8,7 +8,7 @@ import warnings
 warnings.filterwarnings('ignore')
 
 # project root is 3 levels up from modules/soc/data/
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 DATA_DIR = os.path.join(PROJECT_ROOT, "Real-world electric vehicle data driving and charging")
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__))
 WINDOW_SIZE = 50
