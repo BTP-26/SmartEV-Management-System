@@ -1,12 +1,16 @@
-"""Build the binary braking-anticipation dataset for the horizon sweep (task A2).
+"""Build the binary braking-anticipation dataset for the horizon sweep (task A2/A3).
 
 Task definition (decided after data analysis of UAH-DriveSet, which contains no
 graded/emergency braking): for a window whose input ends at time t, predict
 whether a braking event occurs within the next Delta seconds ("brake within the
 next Delta s"). A braking event is a sample with longitudinal deceleration
-< -1.0 m/s^2 (GPS-derived; orientation-free). This is the standard ADAS braking-
-anticipation formulation and is leak-free because the input window strictly
-precedes the look-ahead region (Reviewer 3.1).
+< -1.0 m/s^2 (GPS-derived; orientation-free). The input window strictly precedes
+the look-ahead, so the task is leak-free (Reviewer 3.1).
+
+A3 adds an auxiliary regression target per window: the normalised peak
+deceleration magnitude in the look-ahead window (how hard braking will be) -
+the continuous quantity the binary label is a threshold of. This replaces the
+all-zero intensity target so the multitask regression head has something to learn.
 
 Per window we also emit two non-ML floor baselines (Reviewer 3.1 / 4.2):
   * rule    : 1 if the vehicle is already braking anywhere in the INPUT window.
@@ -15,6 +19,7 @@ Per window we also emit two non-ML floor baselines (Reviewer 3.1 / 4.2):
 Outputs (regenerable; .npy git-ignored) -> modules/braking/data/horizon/:
   X_{split}.npy              scaled input windows (shared across horizons)
   y_h{idx}_{split}.npy       binary label per horizon (brake within Delta s)
+  yint_h{idx}_{split}.npy    intensity target per horizon (normalised peak decel)
   rule_pred_{split}.npy      threshold-rule floor prediction
   persist_pred_{split}.npy   persistence floor prediction
   scaler.pkl                 StandardScaler fit on train
@@ -36,11 +41,13 @@ sys.path.insert(0, PROJECT_ROOT)
 from modules.braking.data.preprocess_real_data import (  # noqa: E402
     DATA_DIR, WINDOW_SIZE, STEP_SIZE,
     load_accelerometer_data, load_gps_data,
-    synchronize_sensor_data, create_braking_labels,
+    synchronize_sensor_data, compute_deceleration,
 )
 
-# --- A2 configuration (explicit; can move to config/default.yaml later) ---
+# --- A2/A3 configuration (explicit; can move to config/default.yaml later) ---
 HORIZONS_S = [0.5, 1.0, 2.0, 3.0]   # look-ahead lead times Delta (seconds)
+BRAKE_THRESHOLD = -1.0              # deceleration (m/s^2) that counts as braking
+MAX_DECEL_MS2 = 3.0                 # scale for the intensity target (m/s^2 -> [0,1])
 RANDOM_STATE = 42
 CLASS_NAMES = {0: "NoBrake", 1: "Brake"}
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), 'horizon')
@@ -52,12 +59,16 @@ def _binary_distribution(y):
     return {CLASS_NAMES[0]: int(counts[0]), CLASS_NAMES[1]: int(counts[1])}
 
 
-def _load_trip_braking(trip_path):
-    """Return (features[N,7], braking_bool[N], median_dt) for one trip, or None.
+def _peak_intensity(decel_segment):
+    """Normalised peak deceleration magnitude in a look-ahead segment -> [0,1]."""
+    if len(decel_segment) == 0:
+        return 0.0
+    magnitude = max(0.0, -float(decel_segment.min()))   # strongest deceleration
+    return min(magnitude / MAX_DECEL_MS2, 1.0)
 
-    braking_bool marks samples with deceleration < -1.0 m/s^2, reusing the
-    Stage-1 per-sample labeler (class >= 1 == braking).
-    """
+
+def _load_trip(trip_path):
+    """Return (features[N,7], decel[N], braking_bool[N], median_dt) or None."""
     time_acc, acc_data, gyro_data = load_accelerometer_data(trip_path)
     time_gps, gps_speed = load_gps_data(trip_path)
     if time_acc is None or len(time_acc) < WINDOW_SIZE + 10:
@@ -65,41 +76,42 @@ def _load_trip_braking(trip_path):
     features, time_clean = synchronize_sensor_data(time_acc, acc_data, gyro_data, time_gps, gps_speed)
     if len(features) < WINDOW_SIZE + 10:
         return None
-    per_sample_class = create_braking_labels(gps_speed, time_gps, time_clean)
-    braking = (per_sample_class >= 1).astype(np.int64)   # decel < -1.0 m/s^2
+    decel = compute_deceleration(gps_speed, time_gps, time_clean)   # m/s^2 per sample
+    braking = (decel < BRAKE_THRESHOLD).astype(np.int64)
     dt = float(np.median(np.diff(time_clean)))
     if not np.isfinite(dt) or dt <= 0:
         return None
-    return features, braking, dt
+    return features, decel, braking, dt
 
 
-def _windows_for_trip(features, braking, horizon_samps):
-    """Emit (window, [label_per_horizon], rule_pred, persist_pred) per window.
+def _windows_for_trip(features, decel, braking, horizon_samps):
+    """Emit (window, [label], [intensity], rule, persist) per window.
 
     A window is kept only if its longest look-ahead fits inside the trip, so the
     window set is identical across horizons.
     """
     n = len(features)
     max_h = max(horizon_samps)
-    out_X, out_y, out_rule, out_persist = [], [], [], []
+    out_X, out_y, out_int, out_rule, out_persist = [], [], [], [], []
     for s in range(0, n - WINDOW_SIZE + 1, STEP_SIZE):
         e = s + WINDOW_SIZE - 1
         if e + max_h >= n:
             break
-        # "brake within next Delta s" -> any braking sample in the cumulative look-ahead
         y_per_h = [int(braking[e + 1:e + 1 + h].any()) for h in horizon_samps]
+        int_per_h = [_peak_intensity(decel[e + 1:e + 1 + h]) for h in horizon_samps]
         out_X.append(features[s:s + WINDOW_SIZE])
         out_y.append(y_per_h)
+        out_int.append(int_per_h)
         out_rule.append(int(braking[s:e + 1].any()))   # already braking in input window
         out_persist.append(int(braking[e]))            # last input sample braking
-    return out_X, out_y, out_rule, out_persist
+    return out_X, out_y, out_int, out_rule, out_persist
 
 
 def build():
-    print("Building binary braking-anticipation dataset (A2)...")
+    print("Building binary braking-anticipation dataset (A2/A3)...")
     print(f"  look-ahead horizons (s): {HORIZONS_S}")
 
-    all_X, all_y, all_rule, all_persist, dts = [], [], [], [], []
+    all_X, all_y, all_int, all_rule, all_persist, dts = [], [], [], [], [], []
     for driver in sorted(os.listdir(DATA_DIR)):
         driver_path = os.path.join(DATA_DIR, driver)
         if not os.path.isdir(driver_path) or not driver.startswith('D'):
@@ -108,14 +120,15 @@ def build():
             trip_path = os.path.join(driver_path, trip)
             if not os.path.isdir(trip_path):
                 continue
-            sig = _load_trip_braking(trip_path)
-            if sig is None:
+            loaded = _load_trip(trip_path)
+            if loaded is None:
                 continue
-            features, braking, dt = sig
+            features, decel, braking, dt = loaded
             horizon_samps = [max(1, int(round(h / dt))) for h in HORIZONS_S]
-            Xw, yw, rw, pw = _windows_for_trip(features, braking, horizon_samps)
+            Xw, yw, iw, rw, pw = _windows_for_trip(features, decel, braking, horizon_samps)
             if Xw:
-                all_X.extend(Xw); all_y.extend(yw); all_rule.extend(rw); all_persist.extend(pw)
+                all_X.extend(Xw); all_y.extend(yw); all_int.extend(iw)
+                all_rule.extend(rw); all_persist.extend(pw)
                 dts.append(dt)
 
     if not all_X:
@@ -123,6 +136,7 @@ def build():
 
     X = np.asarray(all_X, dtype=np.float32)
     y = np.asarray(all_y, dtype=np.int64)              # (Nw, n_horizons)
+    yint = np.asarray(all_int, dtype=np.float32)       # (Nw, n_horizons)
     rule = np.asarray(all_rule, dtype=np.int64)
     persist = np.asarray(all_persist, dtype=np.int64)
     print(f"  total windows: {len(X)}  |  median trip dt: {np.median(dts):.4f}s")
@@ -150,7 +164,8 @@ def build():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     manifest = {
         'task': 'binary_braking_anticipation',
-        'positive_definition': 'braking event (decel < -1.0 m/s^2) within next Delta s',
+        'positive_definition': f'braking event (decel < {BRAKE_THRESHOLD} m/s^2) within next Delta s',
+        'intensity_definition': f'peak deceleration magnitude in look-ahead, normalised by {MAX_DECEL_MS2} m/s^2',
         'horizons_s': HORIZONS_S,
         'class_names': CLASS_NAMES,
         'window_size': WINDOW_SIZE,
@@ -165,9 +180,12 @@ def build():
         manifest['label_distribution'][split] = {}
         for hi, h in enumerate(HORIZONS_S):
             yh = y[sidx, hi]
+            ih = yint[sidx, hi]
             np.save(os.path.join(OUTPUT_DIR, f'y_h{hi}_{split}.npy'), yh)
+            np.save(os.path.join(OUTPUT_DIR, f'yint_h{hi}_{split}.npy'), ih)
             dist = _binary_distribution(yh)
             dist['positive_rate'] = round(float(yh.mean()), 4)
+            dist['intensity_mean'] = round(float(ih.mean()), 4)
             manifest['label_distribution'][split][f'{h}s'] = dist
 
     with open(os.path.join(OUTPUT_DIR, 'scaler.pkl'), 'wb') as f:
@@ -175,10 +193,10 @@ def build():
     with open(os.path.join(OUTPUT_DIR, 'horizons.json'), 'w') as f:
         json.dump(manifest, f, indent=2)
 
-    print("  positive (Brake) rate by look-ahead (train):")
+    print("  Brake rate / mean intensity by look-ahead (train):")
     for h in HORIZONS_S:
         d = manifest['label_distribution']['train'][f'{h}s']
-        print(f"    {h}s: Brake={d['Brake']:5d}  NoBrake={d['NoBrake']:5d}  rate={d['positive_rate']:.3f}")
+        print(f"    {h}s: rate={d['positive_rate']:.3f}  intensity_mean={d['intensity_mean']:.3f}")
     print(f"  saved to: {OUTPUT_DIR}")
     print("Done.")
     return True
