@@ -1,0 +1,85 @@
+{
+  "task": "binary_braking_anticipation",
+  "positive_definition": "braking event (decel < -1.0 m/s^2) within next Delta s",
+  "horizons_s": [
+    0.5,
+    1.0,
+    2.0,
+    3.0
+  ],
+  "class_names": {
+    "0": "NoBrake",
+    "1": "Brake"
+  },
+  "window_size": 75,
+  "step_size": 25,
+  "total_windows": 12310,
+  "label_distribution": {
+    "train": {
+      "0.5s": {
+        "NoBrake": 8454,
+        "Brake": 163,
+        "positive_rate": 0.0189
+      },
+      "1.0s": {
+        "NoBrake": 8413,
+        "Brake": 204,
+        "positive_rate": 0.0237
+      },
+      "2.0s": {
+        "NoBrake": 8329,
+        "Brake": 288,
+        "positive_rate": 0.0334
+      },
+      "3.0s": {
+        "NoBrake": 8247,
+        "Brake": 370,
+        "positive_rate": 0.0429
+      }
+    },
+    "val": {
+      "0.5s": {
+        "NoBrake": 1821,
+        "Brake": 25,
+        "positive_rate": 0.0135
+      },
+      "1.0s": {
+        "NoBrake": 1810,
+        "Brake": 36,
+        "positive_rate": 0.0195
+      },
+      "2.0s": {
+        "NoBrake": 1783,
+        "Brake": 63,
+        "positive_rate": 0.0341
+      },
+      "3.0s": {
+        "NoBrake": 1767,
+        "Brake": 79,
+        "positive_rate": 0.0428
+      }
+    },
+    "test": {
+      "0.5s": {
+        "NoBrake": 1802,
+        "Brake": 45,
+        "positive_rate": 0.0244
+      },
+      "1.0s": {
+        "NoBrake": 1795,
+        "Brake": 52,
+        "positive_rate": 0.0282
+      },
+      "2.0s": {
+        "NoBrake": 1784,
+        "Brake": 63,
+        "positive_rate": 0.0341
+      },
+      "3.0s": {
+        "NoBrake": 1767,
+        "Brake": 80,
+        "positive_rate": 0.0433
+      }
+    }
+  }
+}
