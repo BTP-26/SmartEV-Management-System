@@ -76,6 +76,8 @@ def _load_trip(trip_path):
     time_gps, gps_speed = load_gps_data(trip_path)
     if time_acc is None or len(time_acc) < WINDOW_SIZE + 10:
         return None
+    if time_gps is None or gps_speed is None:   # trip has no usable GPS -> skip
+        return None
     features, time_clean = synchronize_sensor_data(time_acc, acc_data, gyro_data, time_gps, gps_speed)
     if len(features) < WINDOW_SIZE + 10:
         return None
@@ -222,6 +224,8 @@ def build():
     }
     for split, sidx in splits.items():
         np.save(os.path.join(OUTPUT_DIR, f'X_{split}.npy'), scale(X[sidx]))
+        # unscaled copy so leave-one-driver-out can fit its scaler per fold
+        np.save(os.path.join(OUTPUT_DIR, f'Xraw_{split}.npy'), X[sidx].astype(np.float32))
         np.save(os.path.join(OUTPUT_DIR, f'rule_pred_{split}.npy'), rule[sidx])
         np.save(os.path.join(OUTPUT_DIR, f'persist_pred_{split}.npy'), persist[sidx])
         np.save(os.path.join(OUTPUT_DIR, f'driver_{split}.npy'), drivers[sidx])
