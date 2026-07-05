@@ -2,6 +2,7 @@
   "task": "binary_braking_anticipation",
   "positive_definition": "braking event (decel < -1.0 m/s^2) within next Delta s",
   "intensity_definition": "peak deceleration magnitude in look-ahead, normalised by 3.0 m/s^2",
+  "split_method": "trip-level (no trip spans two splits)",
   "horizons_s": [
     0.5,
     1.0,
@@ -15,83 +16,88 @@
   "window_size": 75,
   "step_size": 25,
   "total_windows": 12310,
+  "trips_per_split": {
+    "train": 27,
+    "val": 6,
+    "test": 7
+  },
   "label_distribution": {
     "train": {
       "0.5s": {
-        "NoBrake": 8454,
-        "Brake": 163,
-        "positive_rate": 0.0189,
-        "intensity_mean": 0.0557
+        "NoBrake": 8576,
+        "Brake": 175,
+        "positive_rate": 0.02,
+        "intensity_mean": 0.0565
       },
       "1.0s": {
-        "NoBrake": 8413,
-        "Brake": 204,
-        "positive_rate": 0.0237,
-        "intensity_mean": 0.0682
+        "NoBrake": 8533,
+        "Brake": 218,
+        "positive_rate": 0.0249,
+        "intensity_mean": 0.0693
       },
       "2.0s": {
-        "NoBrake": 8329,
-        "Brake": 288,
-        "positive_rate": 0.0334,
-        "intensity_mean": 0.0874
+        "NoBrake": 8435,
+        "Brake": 316,
+        "positive_rate": 0.0361,
+        "intensity_mean": 0.0896
       },
       "3.0s": {
-        "NoBrake": 8247,
-        "Brake": 370,
-        "positive_rate": 0.0429,
-        "intensity_mean": 0.1043
+        "NoBrake": 8343,
+        "Brake": 408,
+        "positive_rate": 0.0466,
+        "intensity_mean": 0.1066
       }
     },
     "val": {
       "0.5s": {
-        "NoBrake": 1821,
-        "Brake": 25,
-        "positive_rate": 0.0135,
-        "intensity_mean": 0.0518
+        "NoBrake": 1664,
+        "Brake": 35,
+        "positive_rate": 0.0206,
+        "intensity_mean": 0.0536
       },
       "1.0s": {
-        "NoBrake": 1810,
-        "Brake": 36,
-        "positive_rate": 0.0195,
-        "intensity_mean": 0.0655
+        "NoBrake": 1653,
+        "Brake": 46,
+        "positive_rate": 0.0271,
+        "intensity_mean": 0.0653
       },
       "2.0s": {
-        "NoBrake": 1783,
-        "Brake": 63,
-        "positive_rate": 0.0341,
-        "intensity_mean": 0.0884
+        "NoBrake": 1643,
+        "Brake": 56,
+        "positive_rate": 0.033,
+        "intensity_mean": 0.0831
       },
       "3.0s": {
-        "NoBrake": 1767,
-        "Brake": 79,
-        "positive_rate": 0.0428,
-        "intensity_mean": 0.1058
+        "NoBrake": 1631,
+        "Brake": 68,
+        "positive_rate": 0.04,
+        "intensity_mean": 0.0999
       }
     },
     "test": {
       "0.5s": {
-        "NoBrake": 1802,
-        "Brake": 45,
-        "positive_rate": 0.0244,
-        "intensity_mean": 0.0566
+        "NoBrake": 1837,
+        "Brake": 23,
+        "positive_rate": 0.0124,
+        "intensity_mean": 0.0509
       },
       "1.0s": {
-        "NoBrake": 1795,
-        "Brake": 52,
-        "positive_rate": 0.0282,
-        "intensity_mean": 0.0691
+        "NoBrake": 1832,
+        "Brake": 28,
+        "positive_rate": 0.0151,
+        "intensity_mean": 0.0638
       },
       "2.0s": {
-        "NoBrake": 1784,
-        "Brake": 63,
-        "positive_rate": 0.0341,
-        "intensity_mean": 0.0879
+        "NoBrake": 1818,
+        "Brake": 42,
+        "positive_rate": 0.0226,
+        "intensity_mean": 0.0825
       },
       "3.0s": {
-        "NoBrake": 1767,
-        "Brake": 80,
-        "positive_rate": 0.0433,
-        "intensity_mean": 0.1039
+        "NoBrake": 1807,
+        "Brake": 53,
+        "positive_rate": 0.0285,
+        "intensity_mean": 0.0983
       }
     }
   }
