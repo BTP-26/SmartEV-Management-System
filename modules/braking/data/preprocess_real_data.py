@@ -95,52 +95,53 @@ def load_gps_data(trip_path: str) -> Tuple[np.ndarray, np.ndarray]:
     data = np.array(data)
     return data[:, 0], data[:, 1]  # time, speed
 
+def compute_deceleration(gps_speed: np.ndarray, time_gps: np.ndarray,
+                         time_acc: np.ndarray) -> np.ndarray:
+    """Per-sample longitudinal acceleration (m/s^2) on the accelerometer timeline.
+
+    GPS speed (km/h) is interpolated onto time_acc, converted to m/s, and
+    differentiated. Negative values are deceleration (braking). This is the
+    shared signal that create_braking_labels thresholds and that the A3
+    intensity target measures.
+    """
+    accel = np.zeros(len(time_acc), dtype=np.float64)
+    if len(gps_speed) < 2:
+        return accel
+
+    # interpolate gps speed onto the accelerometer timeline
+    try:
+        sort_idx = np.argsort(time_gps)
+        tg = time_gps[sort_idx]
+        sp = gps_speed[sort_idx]
+        mask = np.diff(tg) > 1e-6                       # drop duplicate timestamps
+        tg_u = np.concatenate([tg[:1], tg[1:][mask]])
+        sp_u = np.concatenate([sp[:1], sp[1:][mask]])
+        if len(tg_u) < 2:
+            return accel
+        interp = interpolate.interp1d(tg_u, sp_u, kind='linear',
+                                      bounds_error=False, fill_value='extrapolate')
+        speed_ms = interp(time_acc) * KMH_TO_MS
+    except Exception:
+        return accel
+
+    for i in range(1, len(speed_ms)):
+        dt = time_acc[i] - time_acc[i - 1]
+        if dt > 0:
+            accel[i] = (speed_ms[i] - speed_ms[i - 1]) / dt
+    return accel
+
+
 def create_braking_labels(gps_speed: np.ndarray, time_gps: np.ndarray,
                           time_acc: np.ndarray) -> np.ndarray:
     """Create 3-class braking-intention labels from GPS-speed deceleration.
 
-    Classes (see module-level constants): Light(0), Normal(1), Emergency(2).
-    GPS speed is assumed to be in km/h and is converted to m/s so that the
-    deceleration thresholds are expressed in m/s^2.
+    Classes (see module-level constants): Light(0), Normal(1), Emergency(2),
+    derived from the deceleration (m/s^2) returned by compute_deceleration.
     """
+    accel = compute_deceleration(gps_speed, time_gps, time_acc)
     labels = np.full(len(time_acc), LIGHT, dtype=np.int64)
-    if len(gps_speed) < 2:
-        return labels
-
-    # interpolate gps speed onto the accelerometer timeline
-    try:
-        # Ensure time arrays are sorted and unique
-        sort_idx = np.argsort(time_gps)
-        time_gps_sorted = time_gps[sort_idx]
-        speed_sorted = gps_speed[sort_idx]
-
-        # Remove duplicates
-        unique_mask = np.diff(time_gps_sorted) > 1e-6
-        time_gps_unique = np.concatenate([time_gps_sorted[:1], time_gps_sorted[1:][unique_mask]])
-        speed_unique = np.concatenate([speed_sorted[:1], speed_sorted[1:][unique_mask]])
-
-        if len(time_gps_unique) >= 2:
-            speed_interp = interpolate.interp1d(time_gps_unique, speed_unique, kind='linear',
-                                              bounds_error=False, fill_value='extrapolate')
-            speed_sync = speed_interp(time_acc)
-        else:
-            return labels
-    except Exception:
-        return labels
-
-    # convert km/h -> m/s, then differentiate to get longitudinal acceleration
-    speed_ms = speed_sync * KMH_TO_MS
-    for i in range(1, len(speed_ms)):
-        dt = time_acc[i] - time_acc[i - 1]
-        if dt <= 0:
-            continue
-        acceleration = (speed_ms[i] - speed_ms[i - 1]) / dt
-        if acceleration < DECEL_EMERGENCY_THRESHOLD:
-            labels[i] = EMERGENCY
-        elif acceleration < DECEL_NORMAL_THRESHOLD:
-            labels[i] = NORMAL
-        # else: remains LIGHT
-
+    labels[accel < DECEL_NORMAL_THRESHOLD] = NORMAL
+    labels[accel < DECEL_EMERGENCY_THRESHOLD] = EMERGENCY
     return labels
 
 def create_behavior_labels(behavior: str, data_length: int) -> np.ndarray:

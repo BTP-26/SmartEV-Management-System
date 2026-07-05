@@ -1,0 +1,104 @@
+{
+  "task": "binary_braking_anticipation",
+  "positive_definition": "braking event (decel < -1.0 m/s^2) within next Delta s",
+  "intensity_definition": "peak deceleration magnitude in look-ahead, normalised by 3.0 m/s^2",
+  "split_method": "trip-level (no trip spans two splits)",
+  "horizons_s": [
+    0.5,
+    1.0,
+    2.0,
+    3.0
+  ],
+  "class_names": {
+    "0": "NoBrake",
+    "1": "Brake"
+  },
+  "window_size": 75,
+  "step_size": 25,
+  "total_windows": 12310,
+  "trips_per_split": {
+    "train": 27,
+    "val": 6,
+    "test": 7
+  },
+  "label_distribution": {
+    "train": {
+      "0.5s": {
+        "NoBrake": 8576,
+        "Brake": 175,
+        "positive_rate": 0.02,
+        "intensity_mean": 0.0565
+      },
+      "1.0s": {
+        "NoBrake": 8533,
+        "Brake": 218,
+        "positive_rate": 0.0249,
+        "intensity_mean": 0.0693
+      },
+      "2.0s": {
+        "NoBrake": 8435,
+        "Brake": 316,
+        "positive_rate": 0.0361,
+        "intensity_mean": 0.0896
+      },
+      "3.0s": {
+        "NoBrake": 8343,
+        "Brake": 408,
+        "positive_rate": 0.0466,
+        "intensity_mean": 0.1066
+      }
+    },
+    "val": {
+      "0.5s": {
+        "NoBrake": 1664,
+        "Brake": 35,
+        "positive_rate": 0.0206,
+        "intensity_mean": 0.0536
+      },
+      "1.0s": {
+        "NoBrake": 1653,
+        "Brake": 46,
+        "positive_rate": 0.0271,
+        "intensity_mean": 0.0653
+      },
+      "2.0s": {
+        "NoBrake": 1643,
+        "Brake": 56,
+        "positive_rate": 0.033,
+        "intensity_mean": 0.0831
+      },
+      "3.0s": {
+        "NoBrake": 1631,
+        "Brake": 68,
+        "positive_rate": 0.04,
+        "intensity_mean": 0.0999
+      }
+    },
+    "test": {
+      "0.5s": {
+        "NoBrake": 1837,
+        "Brake": 23,
+        "positive_rate": 0.0124,
+        "intensity_mean": 0.0509
+      },
+      "1.0s": {
+        "NoBrake": 1832,
+        "Brake": 28,
+        "positive_rate": 0.0151,
+        "intensity_mean": 0.0638
+      },
+      "2.0s": {
+        "NoBrake": 1818,
+        "Brake": 42,
+        "positive_rate": 0.0226,
+        "intensity_mean": 0.0825
+      },
+      "3.0s": {
+        "NoBrake": 1807,
+        "Brake": 53,
+        "positive_rate": 0.0285,
+        "intensity_mean": 0.0983
+      }
+    }
+  }
+}
