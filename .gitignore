@@ -79,5 +79,8 @@ NOTES.md
 # Documentation
 docs/
 
+# Generated evaluation artifacts
+modules/soc/models/table*.csv
+
 Real-world electric vehicle data driving and charging/
 UAH-DRIVESET-v1/
