@@ -27,6 +27,8 @@ from shared.dataset_loader import get_dataset_loader
 from shared.train_utils import calculate_regression_metrics
 from modules.soc.soc_scale import load_soc_scale, inverse_scale_soc, assert_unit_scale
 from modules.soc.models.lstm_cnn_attention_soc import LSTMCNNAttentionSoC
+from modules.soc.models.baselines_soc import BASELINE_REGISTRY
+from modules.soc.models.coulomb_counting import evaluate_coulomb_counting
 
 SOC_DATA_DIR = project_root / "modules" / "soc" / "data"
 SOC_MODEL_DIR = project_root / "modules" / "soc" / "models"
@@ -83,6 +85,53 @@ def evaluate_model(model, X_test: np.ndarray, y_test_unit: np.ndarray,
     return calculate_regression_metrics(y_test_pct, preds_pct)
 
 
+def build_baseline_ladder_rows(X_test: np.ndarray, y_test: np.ndarray,
+                                scale: Dict[str, float]) -> list:
+    """B3: the same-dataset baseline ladder (Coulomb Counting -> BASELINE_REGISTRY's
+    learned baselines). Generic over BASELINE_REGISTRY - adding a new learned baseline in
+    baselines_soc.py requires no changes here. Coulomb Counting is the one deliberate
+    exception (see coulomb_counting.py docstring): it has no checkpoint and is evaluated
+    over full real cycles, not the windowed X_test, so its `protocol` differs from every
+    other row - callers must not treat n_test_samples as comparable across protocols.
+    Returns [] rows for any learned baseline whose checkpoint doesn't exist yet."""
+    rows = []
+
+    cc_metrics = evaluate_coulomb_counting()
+    rows.append({
+        "model": "Coulomb Counting",
+        "rmse_pct_soc": cc_metrics["rmse"],
+        "mae_pct_soc": cc_metrics["mae"],
+        "mape_pct": cc_metrics["mape"],
+        "n_test_samples": cc_metrics["n_samples"],
+        "protocol": "full-cycle",
+    })
+
+    for cls in BASELINE_REGISTRY:
+        checkpoint_path = SOC_MODEL_DIR / cls.checkpoint_filename
+        if not checkpoint_path.exists():
+            print(f"warning: {checkpoint_path} not found, skipping {cls.name}")
+            continue
+
+        model = cls.load(checkpoint_path)
+        preds_unit = model.predict(X_test)
+        assert_unit_scale(preds_unit, f"{cls.name} predictions")
+
+        preds_pct = inverse_scale_soc(preds_unit, scale)
+        y_test_pct = inverse_scale_soc(y_test, scale)
+        metrics = calculate_regression_metrics(y_test_pct, preds_pct)
+
+        rows.append({
+            "model": cls.name,
+            "rmse_pct_soc": metrics["rmse"],
+            "mae_pct_soc": metrics["mae"],
+            "mape_pct": metrics["mape"],
+            "n_test_samples": len(y_test),
+            "protocol": "windowed-test-split",
+        })
+
+    return rows
+
+
 def main():
     device = get_device()
     print(f"Using device: {device}")
@@ -119,6 +168,20 @@ def main():
     output_path = SOC_MODEL_DIR / "table6.csv"
     table6.to_csv(output_path, index=False)
     print(f"\nSaved: {output_path}")
+
+    # B3: same-dataset baseline ladder (replaces the paper's cross-dataset Table 7).
+    print("\n--- Baseline ladder (Table 7) ---")
+    ladder_rows = build_baseline_ladder_rows(X_test, y_test, scale)
+    # Reuse the LSTM-CNN-Attention row already computed above, if available, so Table 7
+    # includes the full ladder up to the deployed model without evaluating it twice.
+    for row in rows:
+        ladder_rows.append({**row, "protocol": "windowed-test-split"})
+
+    table7 = pd.DataFrame(ladder_rows)
+    table7_path = SOC_MODEL_DIR / "table7.csv"
+    table7.to_csv(table7_path, index=False)
+    print(f"Saved: {table7_path}")
+
     return table6
 
 
