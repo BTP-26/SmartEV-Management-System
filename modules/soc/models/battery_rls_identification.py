@@ -77,12 +77,15 @@ def load_cycle(folder_path: str) -> Optional[Dict[str, np.ndarray]]:
         return None
     if len(t) < 50:
         return None
-    volt, curr = features[:, 0], features[:, 1]
+    volt, curr, temp = features[:, 0], features[:, 1], features[:, 2]
     if len(t) > RESAMPLED_MAX_SAMPLES:
-        volt, curr, soc, t = volt[:RESAMPLED_MAX_SAMPLES], curr[:RESAMPLED_MAX_SAMPLES], \
-            soc[:RESAMPLED_MAX_SAMPLES], t[:RESAMPLED_MAX_SAMPLES]
+        volt, curr, temp, soc, t = volt[:RESAMPLED_MAX_SAMPLES], curr[:RESAMPLED_MAX_SAMPLES], \
+            temp[:RESAMPLED_MAX_SAMPLES], soc[:RESAMPLED_MAX_SAMPLES], t[:RESAMPLED_MAX_SAMPLES]
     Ts = float(np.median(np.diff(t)))
-    return {"volt": volt, "curr": curr, "soc": soc, "t": t, "Ts": Ts, "folder": folder_path}
+    # temp (features[:, 2]) added for B4: the adaptive-ensemble sub-models need the full
+    # [volt, curr, temp] triple (input_dim=3), not just volt/curr (which is all the RLS
+    # identification above this needs) - additive, doesn't change any existing caller.
+    return {"volt": volt, "curr": curr, "temp": temp, "soc": soc, "t": t, "Ts": Ts, "folder": folder_path}
 
 
 def fit_global_ocv_curve(cycles: List[Dict[str, np.ndarray]]):
