@@ -25,6 +25,7 @@ from modules.soc.models.lstm_cnn_attention_soc import (
     LSTMCNNAttentionSoC, train_soc_model, evaluate_soc_model
 )
 from shared.dataset_loader import get_dataset_loader
+from modules.soc.soc_scale import load_soc_scale, inverse_scale_soc
 
 
 class TransformerSoCModel(nn.Module):
@@ -322,21 +323,33 @@ class AdaptiveEnsembleSoC:
             lstm_pred = np.concatenate(lstm_pred)
             transformer_pred = np.concatenate(transformer_pred)
             physics_pred = np.concatenate(physics_pred)
-            
+
             # Ensemble prediction
             weights = self.weights.as_array()
-            ensemble_pred = (weights[0] * lstm_pred + 
-                          weights[1] * transformer_pred + 
+            ensemble_pred = (weights[0] * lstm_pred +
+                          weights[1] * transformer_pred +
                           weights[2] * physics_pred)
-            
+
+            # Report in % SoC via the one inverse transform (roadmap B1 step 2), not the
+            # raw [0,1] training scale, so this matches evaluate_soc.py's Table 6 numbers.
+            # soc_min_percent=0 makes this a pure scale factor, so weight adaptation (which
+            # only depends on the *ratio* of these RMSEs, see adaptive_weight_update()) is
+            # unaffected by reporting in % instead of [0,1].
+            scale = load_soc_scale()
+            y_test_pct = inverse_scale_soc(y_test, scale)
+            lstm_pred_pct = inverse_scale_soc(lstm_pred, scale)
+            transformer_pred_pct = inverse_scale_soc(transformer_pred, scale)
+            physics_pred_pct = inverse_scale_soc(physics_pred, scale)
+            ensemble_pred_pct = inverse_scale_soc(ensemble_pred, scale)
+
             # Calculate RMSE for each model and ensemble
             def rmse(y_true, y_pred):
                 return np.sqrt(np.mean((y_true - y_pred) ** 2))
-            
-            lstm_rmse = rmse(y_test, lstm_pred)
-            transformer_rmse = rmse(y_test, transformer_pred)
-            physics_rmse = rmse(y_test, physics_pred)
-            ensemble_rmse = rmse(y_test, ensemble_pred)
+
+            lstm_rmse = rmse(y_test_pct, lstm_pred_pct)
+            transformer_rmse = rmse(y_test_pct, transformer_pred_pct)
+            physics_rmse = rmse(y_test_pct, physics_pred_pct)
+            ensemble_rmse = rmse(y_test_pct, ensemble_pred_pct)
             
             # Update performance history
             self.performance_history['lstm_cnn'].append(lstm_rmse)

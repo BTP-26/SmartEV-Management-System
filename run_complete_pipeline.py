@@ -221,12 +221,19 @@ def calculate_and_display_model_metrics():
                         torch.cuda.empty_cache() if torch.cuda.is_available() else None
             
             y_pred = np.array(all_predictions)
-            
+
+            # Report in % SoC via the one inverse transform (roadmap B1 step 2), not the
+            # raw [0,1] training scale, so this matches evaluate_soc.py's Table 6 numbers.
+            from modules.soc.soc_scale import load_soc_scale, inverse_scale_soc
+            scale = load_soc_scale()
+            y_test_subset_pct = inverse_scale_soc(y_test_subset, scale)
+            y_pred_pct = inverse_scale_soc(y_pred, scale)
+
             # calculate regression metrics
-            mse = mean_squared_error(y_test_subset, y_pred)
+            mse = mean_squared_error(y_test_subset_pct, y_pred_pct)
             rmse = np.sqrt(mse)
-            mae = mean_absolute_error(y_test_subset, y_pred)
-            mape = np.mean(np.abs((y_test_subset - y_pred) / (y_test_subset + 1e-8))) * 100
+            mae = mean_absolute_error(y_test_subset_pct, y_pred_pct)
+            mape = np.mean(np.abs((y_test_subset_pct - y_pred_pct) / (y_test_subset_pct + 1e-8))) * 100
             
             metrics['soc'] = {
                 'test_rmse': float(rmse),
