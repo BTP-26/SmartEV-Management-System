@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import numpy as np
 import pandas as pd
@@ -10,28 +11,16 @@ warnings.filterwarnings('ignore')
 
 # project root is 3 levels up from modules/soc/data/
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+sys.path.append(PROJECT_ROOT)
+
+from modules.soc.soc_scale import SOC_MIN_PERCENT, SOC_MAX_PERCENT, scale_soc, inverse_scale_soc
+
 DATA_DIR = os.path.join(PROJECT_ROOT, "Real-world electric vehicle data driving and charging")
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__))
 WINDOW_SIZE = 50
 STEP_SIZE = 25  # larger step size for faster processing
 CAPACITY_AH = 240.0  # Mendeley pack capacity (see fig_6_11_12.m: `Cap = 240`), not a single-cell value
 
-# SoC is recorded as a physical percentage (README: "SoC [%]"), so the [0,1] scale used by
-# the model's Sigmoid head is a fixed affine transform (divide by 100), not a data-driven
-# min-max fit. Using the observed min/max of a given split would make 0/1 mean different
-# physical SoC levels across subsets and would leak split-specific range into the scale.
-SOC_MIN_PERCENT = 0.0
-SOC_MAX_PERCENT = 100.0
-
-
-def scale_soc(soc_percent: np.ndarray) -> np.ndarray:
-    """Map raw %SoC (0-100) to the [0,1] range consumed by the model's Sigmoid head."""
-    return (soc_percent - SOC_MIN_PERCENT) / (SOC_MAX_PERCENT - SOC_MIN_PERCENT)
-
-
-def inverse_scale_soc(soc_unit: np.ndarray) -> np.ndarray:
-    """Inverse of scale_soc: map [0,1] model output/target back to %SoC."""
-    return soc_unit * (SOC_MAX_PERCENT - SOC_MIN_PERCENT) + SOC_MIN_PERCENT
 
 def load_ev_data(folder_path: str) -> Dict[str, np.ndarray]:
     """load ev data from matlab .mat file using h5py"""

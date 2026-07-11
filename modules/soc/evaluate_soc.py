@@ -11,7 +11,6 @@
 # predictions and targets back to % SoC through the single soc_scale.json definition, and
 # reports metrics through the one shared calculate_regression_metrics function.
 
-import json
 import os
 import sys
 from pathlib import Path
@@ -26,11 +25,11 @@ sys.path.append(str(project_root))
 
 from shared.dataset_loader import get_dataset_loader
 from shared.train_utils import calculate_regression_metrics
+from modules.soc.soc_scale import load_soc_scale, inverse_scale_soc, assert_unit_scale
 from modules.soc.models.lstm_cnn_attention_soc import LSTMCNNAttentionSoC
 
 SOC_DATA_DIR = project_root / "modules" / "soc" / "data"
 SOC_MODEL_DIR = project_root / "modules" / "soc" / "models"
-DEFAULT_SCALE = {"soc_min_percent": 0.0, "soc_max_percent": 100.0}
 
 
 def get_device() -> torch.device:
@@ -39,39 +38,6 @@ def get_device() -> torch.device:
     if torch.cuda.is_available():
         return torch.device("cuda")
     return torch.device("cpu")
-
-
-def load_soc_scale() -> Dict[str, float]:
-    """Load the soc_min/soc_max metadata written by preprocess_real_data.py.
-
-    Falls back to the documented default (0-100%) if the metadata file is missing, since
-    that reflects the fixed physical definition of SoC, not a data-dependent fit.
-    """
-    scale_path = SOC_DATA_DIR / "soc_scale.json"
-    if scale_path.exists():
-        with open(scale_path) as f:
-            return json.load(f)
-    print(f"warning: {scale_path} not found, assuming default 0-100% scale")
-    return DEFAULT_SCALE
-
-
-def inverse_scale_soc(y_unit: np.ndarray, scale: Dict[str, float]) -> np.ndarray:
-    """Invert the [0,1] scale back to % SoC using the persisted soc_min/soc_max."""
-    soc_min = scale["soc_min_percent"]
-    soc_max = scale["soc_max_percent"]
-    return y_unit * (soc_max - soc_min) + soc_min
-
-
-def _assert_unit_scale(y: np.ndarray, name: str):
-    """Guard against the exact class of scale bug B1 fixes: if targets/predictions land
-    far outside [0,1], the model and data are on mismatched scales again."""
-    lo, hi = float(np.min(y)), float(np.max(y))
-    if lo < -0.05 or hi > 1.05:
-        raise ValueError(
-            f"{name} is outside the expected [0,1] range (got [{lo:.3f}, {hi:.3f}]). "
-            "This usually means the model checkpoint was trained on a different SoC "
-            "scale than the currently-loaded dataset - retrain before evaluating."
-        )
 
 
 def load_lstm_cnn_attention_soc(device: torch.device) -> Optional[LSTMCNNAttentionSoC]:
@@ -97,7 +63,7 @@ def load_lstm_cnn_attention_soc(device: torch.device) -> Optional[LSTMCNNAttenti
 def evaluate_model(model, X_test: np.ndarray, y_test_unit: np.ndarray,
                     scale: Dict[str, float], device: torch.device,
                     batch_size: int = 256) -> Dict[str, float]:
-    _assert_unit_scale(y_test_unit, "y_test")
+    assert_unit_scale(y_test_unit, "y_test")
 
     preds_unit = []
     model.eval()
@@ -107,7 +73,7 @@ def evaluate_model(model, X_test: np.ndarray, y_test_unit: np.ndarray,
             preds_unit.append(model(batch_x).cpu().numpy())
     preds_unit = np.concatenate(preds_unit)
 
-    _assert_unit_scale(preds_unit, "predictions")
+    assert_unit_scale(preds_unit, "predictions")
 
     # Report in % SoC via the one inverse transform (roadmap B1 step 2), not the raw
     # [0,1] training scale.
