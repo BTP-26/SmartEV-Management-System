@@ -14,7 +14,7 @@
 import os
 import sys
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -82,19 +82,29 @@ def evaluate_model(model, X_test: np.ndarray, y_test_unit: np.ndarray,
     y_test_pct = inverse_scale_soc(y_test_unit, scale)
     preds_pct = inverse_scale_soc(preds_unit, scale)
 
-    return calculate_regression_metrics(y_test_pct, preds_pct)
+    metrics = calculate_regression_metrics(y_test_pct, preds_pct)
+    # B5: additive keys (existing readers only read rmse/mae/mape by name) - lets callers
+    # reuse these predictions for per-segment/per-SoC-level reporting without re-running
+    # inference.
+    metrics["preds_pct"] = preds_pct
+    metrics["y_true_pct"] = y_test_pct
+    return metrics
 
 
 def build_baseline_ladder_rows(X_test: np.ndarray, y_test: np.ndarray,
-                                scale: Dict[str, float]) -> list:
+                                scale: Dict[str, float]) -> Tuple[list, Dict[str, np.ndarray]]:
     """B3: the same-dataset baseline ladder (Coulomb Counting -> BASELINE_REGISTRY's
     learned baselines). Generic over BASELINE_REGISTRY - adding a new learned baseline in
     baselines_soc.py requires no changes here. Coulomb Counting is the one deliberate
     exception (see coulomb_counting.py docstring): it has no checkpoint and is evaluated
     over full real cycles, not the windowed X_test, so its `protocol` differs from every
-    other row - callers must not treat n_test_samples as comparable across protocols.
-    Returns [] rows for any learned baseline whose checkpoint doesn't exist yet."""
+    other row - callers must not treat n_test_samples as comparable across protocols (and
+    it has no windowed predictions to return - excluded from the second return value).
+    Returns ([] rows for any learned baseline whose checkpoint doesn't exist yet,
+    {model_name: preds_pct} for models that were evaluated - B5: reused for per-segment/
+    per-SoC-level reporting without re-running inference)."""
     rows = []
+    predictions_by_model: Dict[str, np.ndarray] = {}
 
     cc_metrics = evaluate_coulomb_counting()
     rows.append({
@@ -128,8 +138,62 @@ def build_baseline_ladder_rows(X_test: np.ndarray, y_test: np.ndarray,
             "n_test_samples": len(y_test),
             "protocol": "windowed-test-split",
         })
+        predictions_by_model[cls.name] = preds_pct
 
-    return rows
+    return rows, predictions_by_model
+
+
+def compute_segment_and_soclevel_breakdown(model_name: str, y_true_pct: np.ndarray,
+                                            preds_pct: np.ndarray, segment_type: np.ndarray,
+                                            n_soc_bins: int = 5) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """B5 (roadmap step 3): per-segment (charge/drive/regen) and error-vs-SoC-level
+    breakdowns for one already-evaluated model, reusing its predictions rather than
+    re-running inference. Small-n segments/bins (e.g. a rare "regen" slice, or a sparsely
+    populated SoC bin) can have unstable or undefined R^2 (see
+    calculate_regression_metrics's n<2/zero-variance guard) - not solved here, just not
+    hidden."""
+    segment_rows = []
+    for seg in sorted(set(segment_type.tolist())):
+        mask = segment_type == seg
+        metrics = calculate_regression_metrics(y_true_pct[mask], preds_pct[mask])
+        segment_rows.append({
+            "model": model_name, "segment_type": seg,
+            "rmse_pct_soc": metrics["rmse"], "mae_pct_soc": metrics["mae"], "r2": metrics["r2"],
+            "n_samples": int(mask.sum()),
+        })
+
+    bin_edges = np.linspace(0.0, 100.0, n_soc_bins + 1)
+    bin_idx = np.clip(np.digitize(y_true_pct, bin_edges) - 1, 0, n_soc_bins - 1)
+    soc_level_rows = []
+    for b in range(n_soc_bins):
+        mask = bin_idx == b
+        if mask.sum() == 0:
+            continue
+        metrics = calculate_regression_metrics(y_true_pct[mask], preds_pct[mask])
+        soc_level_rows.append({
+            "model": model_name, "soc_bin": f"{bin_edges[b]:.0f}-{bin_edges[b + 1]:.0f}%",
+            "rmse_pct_soc": metrics["rmse"], "mae_pct_soc": metrics["mae"],
+            "n_samples": int(mask.sum()),
+        })
+
+    return pd.DataFrame(segment_rows), pd.DataFrame(soc_level_rows)
+
+
+def build_per_segment_and_soclevel_tables(predictions_by_model: Dict[str, np.ndarray],
+                                           y_true_pct: np.ndarray, segment_type_test: np.ndarray,
+                                           n_soc_bins: int = 5) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """B5 deliverable: per-segment error table + error-vs-SoC-level table, across every
+    model in `predictions_by_model` (deployed model + any evaluated baselines). Coulomb
+    Counting is not included - it has no windowed predictions (see
+    build_baseline_ladder_rows)."""
+    segment_frames, soc_level_frames = [], []
+    for model_name, preds_pct in predictions_by_model.items():
+        seg_df, soc_df = compute_segment_and_soclevel_breakdown(
+            model_name, y_true_pct, preds_pct, segment_type_test, n_soc_bins
+        )
+        segment_frames.append(seg_df)
+        soc_level_frames.append(soc_df)
+    return pd.concat(segment_frames, ignore_index=True), pd.concat(soc_level_frames, ignore_index=True)
 
 
 def main():
@@ -171,7 +235,7 @@ def main():
 
     # B3: same-dataset baseline ladder (replaces the paper's cross-dataset Table 7).
     print("\n--- Baseline ladder (Table 7) ---")
-    ladder_rows = build_baseline_ladder_rows(X_test, y_test, scale)
+    ladder_rows, _predictions_by_model = build_baseline_ladder_rows(X_test, y_test, scale)
     # Reuse the LSTM-CNN-Attention row already computed above, if available, so Table 7
     # includes the full ladder up to the deployed model without evaluating it twice.
     for row in rows:

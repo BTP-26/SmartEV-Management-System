@@ -1,6 +1,6 @@
 import torch
 from torch.utils.data import DataLoader, TensorDataset
-from sklearn.metrics import accuracy_score, f1_score, mean_squared_error, mean_absolute_error
+from sklearn.metrics import accuracy_score, f1_score, mean_squared_error, mean_absolute_error, r2_score
 import numpy as np
 import os
 import time
@@ -107,12 +107,16 @@ def calculate_regression_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict
     rmse = np.sqrt(mse)
     mae = mean_absolute_error(y_true, y_pred)
     mape = np.mean(np.abs((y_true - y_pred) / (y_true + 1e-8))) * 100
-    
+    # B5: R^2 is undefined for n<2 or zero-variance y_true (e.g. a small per-segment or
+    # per-SoC-bin slice) - report NaN rather than letting sklearn warn/error.
+    r2 = float(r2_score(y_true, y_pred)) if len(y_true) >= 2 and np.var(y_true) > 0 else float('nan')
+
     return {
         'mse': float(mse),
         'rmse': float(rmse),
         'mae': float(mae),
-        'mape': float(mape)
+        'mape': float(mape),
+        'r2': r2
     }
 
 
