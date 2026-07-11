@@ -4,7 +4,6 @@ import json
 import numpy as np
 import pandas as pd
 import h5py
-from sklearn.model_selection import train_test_split
 from typing import Dict, List, Tuple
 import warnings
 warnings.filterwarnings('ignore')
@@ -145,43 +144,114 @@ def process_single_trip(trip_path: str) -> Tuple[np.ndarray, np.ndarray]:
         print(f"Error processing {trip_path}: {e}")
         return None, None
 
+def assign_sessions_to_splits(session_sizes: Dict[str, Tuple[str, int]], val_frac: float = 0.2,
+                               test_frac: float = 0.2, seed: int = 42) -> Dict[str, str]:
+    """B5: assign whole sessions (not windows) to train/val/test, so no session's windows
+    can appear in more than one split (the leak roadmap EV-1/B5 exists to close).
+
+    `session_sizes` maps session_id -> (folder_type, n_windows). Sessions are assigned
+    independently *within* each folder_type ("Drive"/"Charge") via greedy largest-first
+    bin-packing toward the target window-count share, so every split gets a mix of both
+    regimes - without this, a split could end up with zero Charge windows, making
+    per-segment "charge" reporting impossible for it. With only ~15 sessions total, exact
+    60/20/20 proportions by window count are not achievable - this is an honest, documented
+    tradeoff of session-level splitting on a small number of long sessions, not a bug.
+    """
+    rng = np.random.RandomState(seed)
+    assignment: Dict[str, str] = {}
+
+    folder_types = sorted(set(ftype for ftype, _ in session_sizes.values()))
+    for folder_type in folder_types:
+        group = [(sid, n) for sid, (ftype, n) in session_sizes.items() if ftype == folder_type]
+        rng.shuffle(group)  # avoid alphabetical-order bias before greedy packing
+        group.sort(key=lambda x: -x[1])  # largest sessions first
+
+        total = sum(n for _, n in group)
+        target_val = total * val_frac
+        target_test = total * test_frac
+        target_train = total - target_val - target_test
+        cur = {'train': 0.0, 'val': 0.0, 'test': 0.0}
+
+        for sid, n in group:
+            deficits = {
+                'train': target_train - cur['train'],
+                'val': target_val - cur['val'],
+                'test': target_test - cur['test'],
+            }
+            split = max(deficits, key=deficits.get)
+            assignment[sid] = split
+            cur[split] += n
+
+    return assignment
+
+
+def tag_segment_types(X: np.ndarray, session_ids: np.ndarray) -> np.ndarray:
+    """B5: per-window segment label - 'charge' for windows from a Charge/ session, else
+    'regen' if the window's mean current is negative (braking, per this dataset's sign
+    convention: driving current is positive for accel/cruise, negative for braking - see
+    docs/soc_pipeline.md), else 'drive'. X columns are [volt, curr, temp]
+    (synchronize_data's column order), so current is X[:, :, 1]."""
+    mean_current = X[:, :, 1].mean(axis=1)
+    is_charge = np.array([sid.startswith("Charge/") for sid in session_ids])
+    segment = np.where(is_charge, "charge", np.where(mean_current < 0, "regen", "drive"))
+    return segment.astype("<U16")
+
+
+def assert_no_session_leakage(session_id_train: np.ndarray, session_id_val: np.ndarray,
+                               session_id_test: np.ndarray) -> None:
+    """B5: the leak-free split's core guarantee - no session's windows may appear in more
+    than one split. Raises if violated; called unconditionally so every future dataset
+    regeneration is guarded, not just this one."""
+    train_set, val_set, test_set = set(session_id_train), set(session_id_val), set(session_id_test)
+    overlap_tv = train_set & val_set
+    overlap_tt = train_set & test_set
+    overlap_vt = val_set & test_set
+    if overlap_tv or overlap_tt or overlap_vt:
+        raise AssertionError(
+            f"Session leakage detected! train&val={overlap_tv}, train&test={overlap_tt}, "
+            f"val&test={overlap_vt}"
+        )
+    print(f"No session leakage: {len(train_set)} train / {len(val_set)} val / "
+          f"{len(test_set)} test sessions, fully disjoint.")
+
+
 def process_all_data():
     """Process all EV driving and charging data."""
     print("Processing real-world EV driving and charging data...")
-    
-    all_X, all_y = [], []
-    
-    # Process driving data
-    drive_dir = os.path.join(DATA_DIR, "Drive")
-    if os.path.exists(drive_dir):
-        for folder in os.listdir(drive_dir):
-            folder_path = os.path.join(drive_dir, folder)
-            if os.path.isdir(folder_path):
-                print(f"Processing driving data: {folder}")
-                X, y = process_single_trip(folder_path)
-                if X is not None:
-                    all_X.append(X)
-                    all_y.append(y)
-    
-    # Process charging data
-    charge_dir = os.path.join(DATA_DIR, "Charge")
-    if os.path.exists(charge_dir):
-        for folder in os.listdir(charge_dir):
-            folder_path = os.path.join(charge_dir, folder)
-            if os.path.isdir(folder_path):
-                print(f"Processing charging data: {folder}")
-                X, y = process_single_trip(folder_path)
-                if X is not None:
-                    all_X.append(X)
-                    all_y.append(y)
-    
+
+    all_X, all_y, all_session_ids = [], [], []
+    session_sizes: Dict[str, Tuple[str, int]] = {}
+
+    # B5: sorted() for deterministic iteration order (was unsorted os.listdir() - matches
+    # battery_rls_identification.py's list_cycle_folders() convention) and session_id
+    # tracking per folder, so windows can later be assigned to splits by whole session
+    # rather than randomly (the leak EV-1/B5 exists to close). process_single_trip() and
+    # create_sliding_windows() are unchanged - session tracking is purely additive here.
+    for folder_type in ("Drive", "Charge"):
+        type_dir = os.path.join(DATA_DIR, folder_type)
+        if not os.path.exists(type_dir):
+            continue
+        for folder in sorted(os.listdir(type_dir)):
+            folder_path = os.path.join(type_dir, folder)
+            if not os.path.isdir(folder_path):
+                continue
+            session_id = f"{folder_type}/{folder}"
+            print(f"Processing {folder_type.lower()} data: {folder}")
+            X, y = process_single_trip(folder_path)
+            if X is not None:
+                all_X.append(X)
+                all_y.append(y)
+                all_session_ids.append(np.full(len(X), session_id, dtype="<U32"))
+                session_sizes[session_id] = (folder_type, len(X))
+
     if not all_X:
         raise ValueError("No valid data found in any folder")
-    
+
     # Concatenate all data
     X_combined = np.concatenate(all_X, axis=0)
     y_combined = np.concatenate(all_y, axis=0)
-    
+    session_id_combined = np.concatenate(all_session_ids, axis=0)
+
     print(f"Total samples: {X_combined.shape[0]}")
     print(f"Feature shape: {X_combined.shape[1:]}")
     print(f"SoC range (raw %): [{y_combined.min():.3f}, {y_combined.max():.3f}]")
@@ -193,21 +263,54 @@ def process_all_data():
     y_combined = scale_soc(y_combined)
     print(f"SoC range (scaled): [{y_combined.min():.3f}, {y_combined.max():.3f}]")
 
-    # Split into train/val/test
-    X_temp, X_test, y_temp, y_test = train_test_split(
-        X_combined, y_combined, test_size=0.2, random_state=42
-    )
-    X_train, X_val, y_train, y_val = train_test_split(
-        X_temp, y_temp, test_size=0.25, random_state=42  # 0.25 * 0.8 = 0.2
-    )
+    # B5: segment type (charge/drive/regen) is a per-window label, independent of which
+    # split a session lands in - a Drive session can (and does) contain both drive and
+    # regen windows.
+    segment_type_combined = tag_segment_types(X_combined, session_id_combined)
 
-    # Save datasets
+    # B5: split by whole session (not window) - this is the actual leak fix. Random
+    # train_test_split() on overlapping windows let near-duplicate windows land on both
+    # sides of the split (EV-1); assigning whole sessions makes that structurally
+    # impossible.
+    split_assignment = assign_sessions_to_splits(session_sizes, val_frac=0.2, test_frac=0.2, seed=42)
+    split_of_window = np.array([split_assignment[sid] for sid in session_id_combined])
+
+    train_mask = split_of_window == 'train'
+    val_mask = split_of_window == 'val'
+    test_mask = split_of_window == 'test'
+
+    X_train, y_train = X_combined[train_mask], y_combined[train_mask]
+    X_val, y_val = X_combined[val_mask], y_combined[val_mask]
+    X_test, y_test = X_combined[test_mask], y_combined[test_mask]
+    session_id_train = session_id_combined[train_mask]
+    session_id_val = session_id_combined[val_mask]
+    session_id_test = session_id_combined[test_mask]
+    segment_type_train = segment_type_combined[train_mask]
+    segment_type_val = segment_type_combined[val_mask]
+    segment_type_test = segment_type_combined[test_mask]
+
+    assert_no_session_leakage(session_id_train, session_id_val, session_id_test)
+
+    # Save datasets - same 6 files, same names/shapes/dtypes as before B5. This is what
+    # keeps shared/dataset_loader.py::load_soc_dataset()'s contract completely unchanged;
+    # only *which* windows populate them changes.
     np.save(os.path.join(OUTPUT_DIR, 'X_train_real.npy'), X_train)
     np.save(os.path.join(OUTPUT_DIR, 'X_val_real.npy'), X_val)
     np.save(os.path.join(OUTPUT_DIR, 'X_test_real.npy'), X_test)
     np.save(os.path.join(OUTPUT_DIR, 'y_train_real.npy'), y_train)
     np.save(os.path.join(OUTPUT_DIR, 'y_val_real.npy'), y_val)
     np.save(os.path.join(OUTPUT_DIR, 'y_test_real.npy'), y_test)
+
+    # B5: new, additive metadata files (session_id/segment_type), row-aligned with the six
+    # files above. shared/dataset_loader.py::load_soc_dataset()'s own signature/return
+    # value is untouched - these are loaded through a separate, new, opt-in method
+    # (load_soc_split_metadata()) so every existing consumer needs zero changes.
+    np.save(os.path.join(OUTPUT_DIR, 'session_id_train_real.npy'), session_id_train)
+    np.save(os.path.join(OUTPUT_DIR, 'session_id_val_real.npy'), session_id_val)
+    np.save(os.path.join(OUTPUT_DIR, 'session_id_test_real.npy'), session_id_test)
+    np.save(os.path.join(OUTPUT_DIR, 'segment_type_train_real.npy'), segment_type_train)
+    np.save(os.path.join(OUTPUT_DIR, 'segment_type_val_real.npy'), segment_type_val)
+    np.save(os.path.join(OUTPUT_DIR, 'segment_type_test_real.npy'), segment_type_test)
 
     # Persist the scale so every downstream consumer (evaluate_soc.py, ensemble, physics
     # model) can invert predictions/targets back to % SoC through one shared definition.
@@ -221,10 +324,13 @@ def process_all_data():
     with open(os.path.join(OUTPUT_DIR, 'soc_scale.json'), 'w') as f:
         json.dump(soc_scale_meta, f, indent=2)
 
-    print(f"Saved real-world EV datasets:")
-    print(f"  Train: {X_train.shape[0]} samples")
-    print(f"  Val:   {X_val.shape[0]} samples")
-    print(f"  Test:  {X_test.shape[0]} samples")
+    print(f"Saved real-world EV datasets (B5 leak-free session split):")
+    print(f"  Train: {X_train.shape[0]} samples, {len(set(session_id_train.tolist()))} sessions")
+    print(f"  Val:   {X_val.shape[0]} samples, {len(set(session_id_val.tolist()))} sessions")
+    print(f"  Test:  {X_test.shape[0]} samples, {len(set(session_id_test.tolist()))} sessions")
+    for split_name, seg in [('Train', segment_type_train), ('Val', segment_type_val), ('Test', segment_type_test)]:
+        unique, counts = np.unique(seg, return_counts=True)
+        print(f"  {split_name} segment mix: {dict(zip(unique.tolist(), counts.tolist()))}")
 
     return X_train, X_val, X_test, y_train, y_val, y_test
 
