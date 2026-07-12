@@ -31,6 +31,8 @@ from torch.utils.data import DataLoader, TensorDataset
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.append(str(project_root))
 
+from shared.train_utils import set_seed
+
 
 def flatten_windows(X: np.ndarray) -> np.ndarray:
     """[N, seq_len, n_features] -> [N, seq_len * n_features]."""
@@ -267,11 +269,14 @@ BASELINE_REGISTRY = [
 ]
 
 
-def train_and_save_all_baselines(model_dir: Path = None) -> None:
+def train_and_save_all_baselines(model_dir: Path = None, seed: int = 42) -> None:
     """The real, full-training entry point - NOT run as part of lightweight
     verification. Fits every registered baseline on the full training set and saves its
-    checkpoint into modules/soc/models/."""
+    checkpoint into modules/soc/models/. `seed` is a reproducibility override for
+    multi-seed experiments (SV-1); it does not change any model/training logic."""
     from shared.dataset_loader import get_dataset_loader
+
+    set_seed(seed)
 
     model_dir = model_dir or (Path(__file__).parent)
     dataset_loader = get_dataset_loader()
@@ -287,4 +292,15 @@ def train_and_save_all_baselines(model_dir: Path = None) -> None:
 
 
 if __name__ == "__main__":
-    train_and_save_all_baselines()
+    import argparse
+    parser = argparse.ArgumentParser(description="Train and save all SoC baseline models")
+    parser.add_argument("--seed", type=int, default=42,
+                        help="Random seed override, for multi-seed experiments (SV-1).")
+    parser.add_argument("--output-dir", type=str, default=None,
+                        help="Directory to save checkpoints into (default: this file's own "
+                             "directory, i.e. modules/soc/models/). Use a seed-specific "
+                             "directory to run multiple seeds without overwriting each other.")
+    args = parser.parse_args()
+    train_and_save_all_baselines(
+        model_dir=Path(args.output_dir) if args.output_dir else None, seed=args.seed,
+    )

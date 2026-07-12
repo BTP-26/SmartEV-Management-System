@@ -40,6 +40,7 @@ from modules.soc.models.lstm_cnn_attention_soc import (
     LSTMCNNAttentionSoC, train_soc_model, evaluate_soc_model
 )
 from shared.dataset_loader import get_dataset_loader
+from shared.train_utils import set_seed
 
 
 @dataclass
@@ -541,9 +542,12 @@ class WeightedObjectiveSoCGAOptimizer:
         return results
 
 
-def run_weighted_objective_soc_ga():
+def run_weighted_objective_soc_ga(seed: int = 42):
     """Run the weighted-objective GA optimization for SoC estimation (Eq. 7's
-    fixed weighted-sum scalarization, not Pareto/NSGA-II - see module docstring)."""
+    fixed weighted-sum scalarization, not Pareto/NSGA-II - see module docstring).
+    `seed` is a reproducibility override for multi-seed experiments (SV-1); it does not
+    change any model/training/search logic."""
+    set_seed(seed)
     # Load the same real, [0,1]-scaled dataset the deployed model uses, instead of the
     # orphaned *_soc.npy convention that no preprocessing script in the repo produced.
     dataset_loader = get_dataset_loader()
@@ -704,4 +708,9 @@ def run_weight_sensitivity_sweep(
 
 
 if __name__ == "__main__":
-    run_weighted_objective_soc_ga()
+    import argparse
+    parser = argparse.ArgumentParser(description="Run the weighted-objective SoC GA search")
+    parser.add_argument("--seed", type=int, default=42,
+                        help="Random seed override, for multi-seed experiments (SV-1).")
+    args = parser.parse_args()
+    run_weighted_objective_soc_ga(seed=args.seed)
