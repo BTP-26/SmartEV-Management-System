@@ -1,8 +1,12 @@
 import os
+import sys
 import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..')))
+from modules.soc.soc_scale import load_soc_scale, inverse_scale_soc
 
 class LSTMCNNAttentionSoC(nn.Module):
     def __init__(self, input_dim=3, cnn_channels=64,
@@ -117,24 +121,31 @@ def evaluate_soc_model(model, X_test, y_test, label="LSTM+CNN+Attention SOC", de
     model.eval()
     with torch.no_grad():
         preds = model(torch.tensor(X_test).to(device)).cpu().numpy()
-    rmse = np.sqrt(np.mean((preds - y_test) ** 2))
-    mae  = np.mean(np.abs(preds - y_test))
-    mape = np.mean(np.abs((preds - y_test) / (y_test + 1e-8))) * 100
+
+    # Report in % SoC via the one inverse transform (roadmap B1 step 2), not the raw
+    # [0,1] training scale, so this matches evaluate_soc.py's Table 6 numbers.
+    scale = load_soc_scale()
+    preds_pct = inverse_scale_soc(preds, scale)
+    y_test_pct = inverse_scale_soc(y_test, scale)
+
+    rmse = np.sqrt(np.mean((preds_pct - y_test_pct) ** 2))
+    mae  = np.mean(np.abs(preds_pct - y_test_pct))
+    mape = np.mean(np.abs((preds_pct - y_test_pct) / (y_test_pct + 1e-8))) * 100
     print(f"\n{label}")
-    print(f"Test RMSE: {rmse:.4f}")
-    print(f"Test MAE: {mae:.4f}")
+    print(f"Test RMSE: {rmse:.4f} % SoC")
+    print(f"Test MAE: {mae:.4f} % SoC")
     print(f"Test MAPE: {mape:.2f}%")
-    return {"rmse": float(rmse), "mae": float(mae), "mape": float(mape), "preds": preds}
+    return {"rmse": float(rmse), "mae": float(mae), "mape": float(mape), "preds": preds_pct}
 
 
 if __name__ == "__main__":
-    DATA = "modules/soc/data"
-    X_train = np.load(f"{DATA}/X_train_soc.npy")
-    y_train = np.load(f"{DATA}/y_train_soc.npy")
-    X_val   = np.load(f"{DATA}/X_val_soc.npy")
-    y_val   = np.load(f"{DATA}/y_val_soc.npy")
-    X_test  = np.load(f"{DATA}/X_test_soc.npy")
-    y_test  = np.load(f"{DATA}/y_test_soc.npy")
+    # Load the real, [0,1]-scaled dataset through the shared DatasetLoader (same source as
+    # the deployed pipeline and evaluate_soc.py). This previously loaded an orphaned
+    # *_soc.npy convention that no preprocessing script in the repo produces, so running
+    # this module directly always crashed. modules/train/train_soc.py is the canonical
+    # training entry point; this block is a module self-demo.
+    from shared.dataset_loader import get_dataset_loader
+    X_train, X_val, X_test, y_train, y_val, y_test = get_dataset_loader().load_soc_dataset()
 
     model = LSTMCNNAttentionSoC()
     model, history = train_soc_model(model, X_train, y_train, X_val, y_val)

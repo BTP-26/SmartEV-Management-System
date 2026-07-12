@@ -56,6 +56,10 @@ modules/soc/models/physics_informed_soc.pth
 !modules/soc/models/multi_objective_ga_results.json
 !modules/braking/models/lstm_cnn_attention_baseline.pth
 
+# Regenerable SoC parameter/scale artifacts 
+modules/soc/data/soc_scale.json
+modules/soc/models/battery_params_identified.json
+
 # Cognitive system data (keep these)
 shared/cognitive_state.json
 shared/driver_profiles.json
@@ -71,6 +75,12 @@ training_complete_report.json
 interview-questions.txt
 TODO.md
 NOTES.md
+
+# Documentation
+docs/
+
+# Generated evaluation artifacts
+modules/soc/models/table*.csv
 
 Real-world electric vehicle data driving and charging/
 UAH-DRIVESET-v1/

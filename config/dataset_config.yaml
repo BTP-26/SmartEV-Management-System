@@ -17,6 +17,15 @@ soc:
     y_train_file: "modules/soc/data/y_train_real.npy"
     y_val_file: "modules/soc/data/y_val_real.npy"
     y_test_file: "modules/soc/data/y_test_real.npy"
+    # B5: session/segment metadata, additive - row-aligned with the six files above.
+    # Loaded via a new, separate DatasetLoader.load_soc_split_metadata() method; the six
+    # keys above and load_soc_dataset()'s contract are completely unchanged.
+    session_id_train_file: "modules/soc/data/session_id_train_real.npy"
+    session_id_val_file: "modules/soc/data/session_id_val_real.npy"
+    session_id_test_file: "modules/soc/data/session_id_test_real.npy"
+    segment_type_train_file: "modules/soc/data/segment_type_train_real.npy"
+    segment_type_val_file: "modules/soc/data/segment_type_val_real.npy"
+    segment_type_test_file: "modules/soc/data/segment_type_test_real.npy"
   
   # Simulated dataset paths (when source = "simulated")
   simulated_data:

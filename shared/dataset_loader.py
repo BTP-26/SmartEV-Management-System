@@ -48,7 +48,22 @@ class DatasetLoader:
         y_test = np.load(os.path.join(project_root, paths['y_test_file']))
         
         return X_train, X_val, X_test, y_train, y_val, y_test
-    
+
+    def load_soc_split_metadata(self) -> Dict[str, Dict[str, np.ndarray]]:
+        """B5: session_id/segment_type per window, row-aligned with load_soc_dataset()'s
+        arrays. A new, separate, opt-in method - load_soc_dataset()'s own signature and
+        return value are completely unchanged, so every existing caller needs zero changes
+        to keep working; only callers that want per-segment reporting (e.g. evaluate_soc.py)
+        need to call this too."""
+        paths = self.get_dataset_paths('soc')
+        result = {}
+        for split in ('train', 'val', 'test'):
+            result[split] = {
+                'session_id': np.load(os.path.join(project_root, paths[f'session_id_{split}_file'])),
+                'segment_type': np.load(os.path.join(project_root, paths[f'segment_type_{split}_file'])),
+            }
+        return result
+
     def load_braking_dataset(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, 
                                           np.ndarray, np.ndarray, np.ndarray,
                                           np.ndarray, np.ndarray, np.ndarray]:
