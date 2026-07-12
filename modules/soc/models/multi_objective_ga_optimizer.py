@@ -1,6 +1,18 @@
 
-# Multi-Objective Genetic Algorithm Optimizer for SoC Estimation
-# Optimizes for multiple objectives: RMSE, computational efficiency, and temperature robustness
+# B6: Weighted-Objective Genetic Algorithm Optimizer for SoC Estimation
+#
+# This was previously described as "multi-objective" (class/function names, prints, output
+# files all said "multi_objective"). In fact this is a fixed weighted-sum scalarization
+# (paper Eq. 7: f = w1*f1 + w2*f2 + w3*f3, w=[0.5, 0.3, 0.2], matching this file's
+# w_rmse/w_efficiency/w_robustness defaults exactly) - selection/elitism (_tournament())
+# uses only this one combined scalar. There is no Pareto front, no non-dominated sorting,
+# no NSGA-II anywhere in this file, even though NSGA-II is cited in the paper's related
+# work. Renamed throughout for honesty (Reviewer 3.3). Optimizes a single scalarized
+# objective built from three real, individually-tracked-but-not-Pareto-ranked terms: RMSE,
+# computational efficiency (inference time), and temperature robustness.
+#
+# See run_weight_sensitivity_sweep() for how the specific choice of weights [0.5, 0.3, 0.2]
+# affects which hyperparameters end up selected (roadmap B6 step 2).
 
 import json
 import math
@@ -13,6 +25,7 @@ from typing import Dict, List, Tuple, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import torch
 import torch.nn as nn
 from torch.utils.data import TensorDataset, DataLoader
@@ -30,8 +43,8 @@ from shared.dataset_loader import get_dataset_loader
 
 
 @dataclass
-class MultiObjectiveSoCHyperParams:
-    """Extended hyperparameters for multi-objective optimization."""
+class WeightedObjectiveSoCHyperParams:
+    """Extended hyperparameters for the weighted-objective GA search."""
     learning_rate: float
     batch_size: int
     lstm_hidden: int
@@ -57,8 +70,9 @@ class MultiObjectiveSoCHyperParams:
         }
 
 
-class MultiObjectiveSoCGAOptimizer:
-    """Multi-objective GA optimizer for SoC estimation."""
+class WeightedObjectiveSoCGAOptimizer:
+    """Weighted-objective GA optimizer for SoC estimation (fixed weighted-sum
+    scalarization, not Pareto/NSGA-II - see module docstring)."""
     
     def __init__(
         self,
@@ -96,7 +110,7 @@ class MultiObjectiveSoCGAOptimizer:
         
         self._cache: Dict[Tuple, Tuple[float, float, float]] = {}
         
-        # Extended search space for multi-objective optimization
+        # Extended search space for the weighted-objective GA search
         self.lr_choices = [1e-4, 5e-4, 1e-3, 5e-3]
         self.batch_choices = [32, 64, 128, 256]
         self.hidden_choices = [32, 64, 128, 256]
@@ -107,9 +121,9 @@ class MultiObjectiveSoCGAOptimizer:
         self.layer_norm_choices = [True, False]
         self.bidirectional_choices = [True, False]
     
-    def _random_hp(self) -> MultiObjectiveSoCHyperParams:
+    def _random_hp(self) -> WeightedObjectiveSoCHyperParams:
         """Generate random hyperparameters."""
-        return MultiObjectiveSoCHyperParams(
+        return WeightedObjectiveSoCHyperParams(
             learning_rate=random.choice(self.lr_choices),
             batch_size=random.choice(self.batch_choices),
             lstm_hidden=random.choice(self.hidden_choices),
@@ -121,11 +135,11 @@ class MultiObjectiveSoCGAOptimizer:
             bidirectional=random.choice(self.bidirectional_choices),
         )
     
-    def _encode(self, hp: MultiObjectiveSoCHyperParams) -> Tuple:
+    def _encode(self, hp: WeightedObjectiveSoCHyperParams) -> Tuple:
         """Encode hyperparameters for caching."""
         return tuple(sorted(hp.as_dict().items()))
     
-    def _create_model(self, hp: MultiObjectiveSoCHyperParams) -> nn.Module:
+    def _create_model(self, hp: WeightedObjectiveSoCHyperParams) -> nn.Module:
         """Create model with given hyperparameters."""
         # Create a modified version of the SoC model with additional parameters
         class EnhancedLSTMCNNAttentionSoC(LSTMCNNAttentionSoC):
@@ -282,8 +296,10 @@ class MultiObjectiveSoCGAOptimizer:
         avg_robustness_loss = np.mean(robustness_scores)
         return avg_robustness_loss
     
-    def _multi_objective_fitness(self, hp: MultiObjectiveSoCHyperParams) -> Tuple[float, float, float, float]:
-        """Calculate multi-objective fitness (RMSE, efficiency, robustness, combined)."""
+    def _weighted_fitness(self, hp: WeightedObjectiveSoCHyperParams) -> Tuple[float, float, float, float]:
+        """Calculate weighted-sum fitness (RMSE, efficiency, robustness, combined). The
+        three individual terms are tracked for reporting, but only `combined` (the
+        weighted sum) drives selection/elitism - see _tournament()."""
         key = self._encode(hp)
         if key in self._cache:
             return self._cache[key]
@@ -303,7 +319,7 @@ class MultiObjectiveSoCGAOptimizer:
                 lr=hp.learning_rate, batch_size=hp.batch_size,
                 epochs=self.max_epochs, patience=5,
                 device=self.device,
-                save_path="modules/soc/models/tmp_multi_obj_soc.pth",
+                save_path="modules/soc/models/tmp_weighted_obj_soc.pth",
             )
             
             # Objective 1: RMSE (lower is better)
@@ -340,13 +356,13 @@ class MultiObjectiveSoCGAOptimizer:
             self._cache[key] = worst_fitness
             return worst_fitness
     
-    def _tournament(self, pop, fits) -> MultiObjectiveSoCHyperParams:
+    def _tournament(self, pop, fits) -> WeightedObjectiveSoCHyperParams:
         """Tournament selection based on combined fitness."""
         idx = random.sample(range(len(pop)), self.tournament_size)
         best = max(idx, key=lambda i: fits[i][0])  # Use combined fitness
         return pop[best]
     
-    def _crossover(self, p1: MultiObjectiveSoCHyperParams, p2: MultiObjectiveSoCHyperParams):
+    def _crossover(self, p1: WeightedObjectiveSoCHyperParams, p2: WeightedObjectiveSoCHyperParams):
         """Crossover operation for hyperparameters."""
         g1 = list(p1.as_dict().values())
         g2 = list(p2.as_dict().values())
@@ -363,7 +379,7 @@ class MultiObjectiveSoCGAOptimizer:
                 child2.append(v1)
         
         def build(g):
-            return MultiObjectiveSoCHyperParams(
+            return WeightedObjectiveSoCHyperParams(
                 learning_rate=g[0], batch_size=int(g[1]),
                 lstm_hidden=int(g[2]), num_lstm_layers=int(g[3]),
                 dropout_rate=float(g[4]), cnn_channels=int(g[5]),
@@ -373,7 +389,7 @@ class MultiObjectiveSoCGAOptimizer:
         
         return build(child1), build(child2)
     
-    def _mutate(self, hp: MultiObjectiveSoCHyperParams) -> MultiObjectiveSoCHyperParams:
+    def _mutate(self, hp: WeightedObjectiveSoCHyperParams) -> WeightedObjectiveSoCHyperParams:
         """Mutation operation for hyperparameters."""
         d = hp.as_dict()
         
@@ -396,17 +412,17 @@ class MultiObjectiveSoCGAOptimizer:
         if random.random() < self.mutation_rate:
             d["bidirectional"] = random.choice(self.bidirectional_choices)
         
-        return MultiObjectiveSoCHyperParams(**d)
+        return WeightedObjectiveSoCHyperParams(**d)
     
     def run(self):
-        """Run multi-objective GA optimization."""
-        print(f"Starting Multi-Objective GA Optimization...")
+        """Run the weighted-objective GA optimization loop."""
+        print(f"Starting Weighted-Objective GA Optimization...")
         print(f"Population: {self.population_size}, Generations: {self.generations}")
         print(f"Objective weights - RMSE: {self.w_rmse}, Efficiency: {self.w_efficiency}, Robustness: {self.w_robustness}")
         
         # Initialize population
         population = [self._random_hp() for _ in range(self.population_size)]
-        fitnesses = [self._multi_objective_fitness(hp) for hp in population]
+        fitnesses = [self._weighted_fitness(hp) for hp in population]
         
         # Track best individuals for each objective
         best_combined_idx = int(np.argmax([f[0] for f in fitnesses]))
@@ -456,7 +472,7 @@ class MultiObjectiveSoCGAOptimizer:
             
             # Evaluate new population
             population = new_pop
-            fitnesses = [self._multi_objective_fitness(hp) for hp in population]
+            fitnesses = [self._weighted_fitness(hp) for hp in population]
             
             # Update best individuals
             gen_best_combined_idx = int(np.argmax([f[0] for f in fitnesses]))
@@ -525,8 +541,9 @@ class MultiObjectiveSoCGAOptimizer:
         return results
 
 
-def run_multi_objective_soc_ga():
-    """Run multi-objective GA optimization for SoC estimation."""
+def run_weighted_objective_soc_ga():
+    """Run the weighted-objective GA optimization for SoC estimation (Eq. 7's
+    fixed weighted-sum scalarization, not Pareto/NSGA-II - see module docstring)."""
     # Load the same real, [0,1]-scaled dataset the deployed model uses, instead of the
     # orphaned *_soc.npy convention that no preprocessing script in the repo produced.
     dataset_loader = get_dataset_loader()
@@ -551,7 +568,7 @@ def run_multi_objective_soc_ga():
     
     results = ga.run()
 
-    print(f"\n MULTI-OBJECTIVE GA OPTIMIZATION RESULTS")
+    print(f"\n WEIGHTED-OBJECTIVE GA OPTIMIZATION RESULTS")
     
     # Best combined (primary result)
     best_combined = results['best_combined']
@@ -586,9 +603,9 @@ def run_multi_objective_soc_ga():
     
     # Save results
     os.makedirs("modules/soc/models", exist_ok=True)
-    with open("modules/soc/models/multi_objective_ga_results.json", "w") as f:
+    with open("modules/soc/models/weighted_objective_ga_results.json", "w") as f:
         json.dump(serializable_results, f, indent=4)
-    print("Results saved: modules/soc/models/multi_objective_ga_results.json")
+    print("Results saved: modules/soc/models/weighted_objective_ga_results.json")
 
     # Plot fitness curves
     plt.figure(figsize=(12, 8))
@@ -623,12 +640,68 @@ def run_multi_objective_soc_ga():
     
     plt.tight_layout()
     os.makedirs("assets/img", exist_ok=True)
-    plt.savefig("assets/img/multi_objective_ga_fitness.png", dpi=150)
+    plt.savefig("assets/img/weighted_objective_ga_fitness.png", dpi=150)
     plt.close()
-    print("Fitness plots saved: assets/img/multi_objective_ga_fitness.png")
+    print("Fitness plots saved: assets/img/weighted_objective_ga_fitness.png")
 
     return results
 
 
+def run_weight_sensitivity_sweep(
+    X_train, y_train, X_val, y_val,
+    n_candidates: int = 6,
+    weight_triples: Optional[List[Tuple[str, float, float, float]]] = None,
+    max_epochs: int = 3,
+    device=None,
+) -> pd.DataFrame:
+    """B6 step 2: how much does the paper's weight choice (Eq. 7: w=[0.5, 0.3, 0.2])
+    actually matter? Trains a small candidate pool ONCE (the only expensive part - real
+    but lightweight-scale training, `max_epochs` matching this file's existing small
+    defaults), then re-weights each candidate's already-computed (rmse, efficiency,
+    robustness) fitness under several weight triples ARITHMETICALLY (no retraining). This
+    isolates weight-sensitivity from GA search-noise and is far cheaper than re-running a
+    full GA search per triple. Returns one row per weight triple: which candidate it
+    selects and that candidate's real RMSE/inference-time/robustness."""
+    weight_triples = weight_triples or [
+        ("paper (0.5/0.3/0.2)", 0.5, 0.3, 0.2),
+        ("rmse-heavy", 0.8, 0.1, 0.1),
+        ("efficiency-heavy", 0.1, 0.8, 0.1),
+        ("robustness-heavy", 0.1, 0.1, 0.8),
+        ("equal", 1 / 3, 1 / 3, 1 / 3),
+    ]
+
+    optimizer = WeightedObjectiveSoCGAOptimizer(
+        X_train, y_train, X_val, y_val, max_epochs=max_epochs, device=device,
+    )
+    candidates = [optimizer._random_hp() for _ in range(n_candidates)]
+    print(f"Training {n_candidates} candidates once for the weight-sensitivity sweep...")
+    # (combined, rmse_fitness, efficiency_fitness, robustness_fitness) per candidate -
+    # `combined` here uses the optimizer's own default weights and is unused below; the
+    # sweep recomputes combined scores itself from the raw per-objective terms for every
+    # weight triple.
+    raw_fitness = [optimizer._weighted_fitness(hp) for hp in candidates]
+
+    rows = []
+    for label, w_rmse, w_eff, w_rob in weight_triples:
+        combined_scores = [w_rmse * f[1] + w_eff * f[2] + w_rob * f[3] for f in raw_fitness]
+        best_idx = int(np.argmax(combined_scores))
+        best_hp = candidates[best_idx]
+        best_f = raw_fitness[best_idx]
+        rows.append({
+            "weight_label": label, "w_rmse": w_rmse, "w_efficiency": w_eff, "w_robustness": w_rob,
+            "selected_candidate_idx": best_idx,
+            "rmse": -best_f[1], "inference_time_ms": -best_f[2] * 1000, "robustness_loss": -best_f[3],
+            "hyperparams": best_hp.as_dict(),
+        })
+        print(f"  {label}: candidate #{best_idx} selected "
+              f"(RMSE={-best_f[1]:.4f}, latency={-best_f[2]*1000:.2f}ms, robustness={-best_f[3]:.4f})")
+
+    n_distinct = len(set(row["selected_candidate_idx"] for row in rows))
+    print(f"\n{n_distinct}/{len(weight_triples)} weight triples selected a distinct candidate "
+          f"({'weights matter' if n_distinct > 1 else 'same candidate won under every triple tried'}).")
+
+    return pd.DataFrame(rows)
+
+
 if __name__ == "__main__":
-    run_multi_objective_soc_ga()
+    run_weighted_objective_soc_ga()
