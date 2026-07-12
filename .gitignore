@@ -53,7 +53,7 @@ modules/soc/models/physics_informed_soc.pth
 !modules/soc/models/lstm_soc_baseline.pth
 !modules/soc/models/adaptive_ensemble.json
 !modules/soc/models/physics_params.json
-!modules/soc/models/multi_objective_ga_results.json
+!modules/soc/models/weighted_objective_ga_results.json
 !modules/braking/models/lstm_cnn_attention_baseline.pth
 
 # Regenerable SoC parameter/scale artifacts 
@@ -81,6 +81,21 @@ docs/
 
 # Generated evaluation artifacts
 modules/soc/models/table*.csv
+
+# Multi-seed checkpoints (regenerable)
+modules/soc/models/*_seed*.pth
+
+# Generated SoC evaluation artifacts
+modules/soc/models/per_segment_error.csv
+modules/soc/models/error_vs_soc_level.csv
+modules/soc/models/weight_trajectory.csv
+modules/soc/models/ensemble_ablation.csv
+modules/soc/models/weight_sensitivity_table.csv
+
+# Generated figures
+assets/img/
+
+modules/soc/models/*_metrics.json
 
 Real-world electric vehicle data driving and charging/
 UAH-DRIVESET-v1/
