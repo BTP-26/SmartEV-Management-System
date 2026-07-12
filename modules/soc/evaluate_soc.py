@@ -235,7 +235,7 @@ def main():
 
     # B3: same-dataset baseline ladder (replaces the paper's cross-dataset Table 7).
     print("\n--- Baseline ladder (Table 7) ---")
-    ladder_rows, _predictions_by_model = build_baseline_ladder_rows(X_test, y_test, scale)
+    ladder_rows, predictions_by_model = build_baseline_ladder_rows(X_test, y_test, scale)
     # Reuse the LSTM-CNN-Attention row already computed above, if available, so Table 7
     # includes the full ladder up to the deployed model without evaluating it twice.
     for row in rows:
@@ -245,6 +245,35 @@ def main():
     table7_path = SOC_MODEL_DIR / "table7.csv"
     table7.to_csv(table7_path, index=False)
     print(f"Saved: {table7_path}")
+
+    # B5: per-segment (charge/drive/regen) + error-vs-SoC-level reporting. Additive - does
+    # not change table6.csv/table7.csv. Reuses predictions already computed above (deployed
+    # model + any available learned baselines; Coulomb Counting is excluded since it has no
+    # windowed predictions). Skips gracefully if the session/segment metadata isn't present
+    # (e.g. a dataset produced before the B5 leak-free split), so Table 6/7 always succeed.
+    try:
+        segment_type_test = dataset_loader.load_soc_split_metadata()["test"]["segment_type"]
+    except (FileNotFoundError, KeyError) as e:
+        print(f"\nwarning: session/segment metadata not found ({e}); skipping per-segment reporting")
+        return table6
+
+    predictions_by_model = dict(predictions_by_model)  # learned baselines (CC already excluded)
+    predictions_by_model["LSTM-CNN-Attention"] = metrics["preds_pct"]  # deployed model
+
+    if len(segment_type_test) != len(metrics["y_true_pct"]):
+        print("\nwarning: segment metadata length does not match the test set; "
+              "skipping per-segment reporting")
+        return table6
+
+    print("\n--- Per-segment / per-SoC-level error (B5) ---")
+    segment_df, soc_level_df = build_per_segment_and_soclevel_tables(
+        predictions_by_model, metrics["y_true_pct"], segment_type_test,
+    )
+    segment_df.to_csv(SOC_MODEL_DIR / "per_segment_error.csv", index=False)
+    soc_level_df.to_csv(SOC_MODEL_DIR / "error_vs_soc_level.csv", index=False)
+    print(segment_df.to_string(index=False))
+    print(f"\nSaved: {SOC_MODEL_DIR / 'per_segment_error.csv'}")
+    print(f"Saved: {SOC_MODEL_DIR / 'error_vs_soc_level.csv'}")
 
     return table6
 
