@@ -58,9 +58,9 @@ def train_soc_model(
     print(f"Training on: {device}")
 
     model = model.to(device)
-    train_loader = DataLoader(TensorDataset(torch.tensor(X_train), torch.tensor(y_train)),
+    train_loader = DataLoader(TensorDataset(torch.tensor(X_train, dtype=torch.float32), torch.tensor(y_train, dtype=torch.float32)),
                               batch_size=batch_size, shuffle=True, num_workers=0)
-    val_loader   = DataLoader(TensorDataset(torch.tensor(X_val), torch.tensor(y_val)),
+    val_loader   = DataLoader(TensorDataset(torch.tensor(X_val, dtype=torch.float32), torch.tensor(y_val, dtype=torch.float32)),
                               batch_size=batch_size, shuffle=False, num_workers=0)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
