@@ -18,7 +18,31 @@ from shared.dataset_loader import get_dataset_loader
 from modules.soc.models.lstm_cnn_attention_soc import LSTMCNNAttentionSoC, train_soc_model, evaluate_soc_model
 
 
-def train_lstm_baseline(X_train, y_train, X_val, y_val, device, config=None):
+class LSTMSoCBaseline(nn.Module):
+    """Plain single-stack LSTM baseline (the deployed model without its CNN front-end or
+    attention). Previously this was an inline `SimpleLSTMSOC` created inside a
+    `try: model = LSTMSOC() except:` block, where `LSTMSOC` was undefined and always
+    raised NameError - the bare except silently masked the bug. Promoted to a real, named
+    class so the baseline path is deterministic and reproducible."""
+
+    def __init__(self, input_dim=3, hidden_dim=64, num_layers=2):
+        super().__init__()
+        self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True, dropout=0.2)
+        self.fc = nn.Sequential(
+            nn.Linear(hidden_dim, 32),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(32, 1),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        lstm_out, _ = self.lstm(x)
+        out = self.fc(lstm_out[:, -1, :])
+        return out.squeeze(-1)
+
+
+def train_lstm_baseline(X_train, y_train, X_val, y_val, device, config=None, patience=5):
     if device:
         device = device
     elif torch.backends.mps.is_available():
@@ -26,34 +50,13 @@ def train_lstm_baseline(X_train, y_train, X_val, y_val, device, config=None):
     elif torch.cuda.is_available():
         device = torch.device("cuda")
     else:
-        device = torch.device("cpu") 
+        device = torch.device("cpu")
     print("training baseline soc model...")
-    
+
     best_val_loss = float('inf')
-    
-    try:
-        model = LSTMSOC()
-    except:
-        class SimpleLSTMSOC(nn.Module):
-            def __init__(self, input_dim=3, hidden_dim=64, num_layers=2):
-                super().__init__()
-                self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True, dropout=0.2)
-                self.fc = nn.Sequential(
-                    nn.Linear(hidden_dim, 32),
-                    nn.ReLU(),
-                    nn.Dropout(0.2),
-                    nn.Linear(32, 1),
-                    nn.Sigmoid()
-                )
-            
-            def forward(self, x):
-                lstm_out, _ = self.lstm(x)
-                out = self.fc(lstm_out[:, -1, :])
-                return out.squeeze(-1)
-        
-        model = SimpleLSTMSOC()
-    
-    model = model.to(device)
+    wait = 0  # was referenced in the early-stopping branch below before being defined
+
+    model = LSTMSoCBaseline().to(device)
     
     train_dataset = TensorDataset(
         torch.from_numpy(X_train).float(),
@@ -124,7 +127,12 @@ def main():
     parser.add_argument("--baseline", action="store_true", help="Train baseline LSTM model only")
     parser.add_argument("--cnn", action="store_true", help="Train LSTM+CNN+Attention model only")
     parser.add_argument("--device", default="auto", help="Device to use (auto/cpu/cuda)")
-    
+    parser.add_argument("--epochs", type=int, default=50,
+                        help="Training epochs for the deployed LSTM-CNN-Attention model (default 50)")
+    parser.add_argument("--subset", type=int, default=0,
+                        help="If >0, train on only this many windows (quick smoke run). Default 0 = "
+                             "full dataset - the canonical run that regenerates the deployed checkpoint.")
+
     args = parser.parse_args()
     
     config = get_config()
@@ -147,16 +155,22 @@ def main():
         print(f"dataset info: {dataset_info}")
         
         X_train, X_val, X_test, y_train, y_val, y_test = dataset_loader.load_soc_dataset()
-        
-        subset_size = min(5000, len(X_train))
-        if len(X_train) > subset_size:
+
+        # Canonical run (--subset 0, the default) trains on the full dataset and regenerates
+        # the deployed checkpoint reproducibly. --subset N is an opt-in quick smoke run only;
+        # it does NOT reproduce the deployed checkpoint.
+        if args.subset and args.subset > 0:
+            subset_size = min(args.subset, len(X_train))
             X_train = X_train[:subset_size]
             y_train = y_train[:subset_size]
-            X_val = X_val[:subset_size//5]
-            y_val = y_val[:subset_size//5]
-            X_test = X_test[:subset_size//5]
-            y_test = y_test[:subset_size//5]
-        
+            X_val = X_val[:max(1, subset_size // 5)]
+            y_val = y_val[:max(1, subset_size // 5)]
+            X_test = X_test[:max(1, subset_size // 5)]
+            y_test = y_test[:max(1, subset_size // 5)]
+            print(f"[quick mode] training on a {subset_size}-window subset (NOT the canonical checkpoint)")
+        else:
+            print("[canonical mode] training on the full dataset")
+
         print(f"Training data shape: {X_train.shape}")
         print(f"Training labels shape: {y_train.shape}")
         print(f"Test data shape: {X_test.shape}")
@@ -182,106 +196,44 @@ def main():
         print(f"MAE: {test_mae:.4f}")
     
     if args.cnn or (not args.baseline):
-        print("\nTraining LSTM+CNN+Attention SOC Model...")
-        
-        best_val_loss = float('inf')
-        
-        num_classes = len(np.unique(y_train))
-        
+        print("\nTraining LSTM+CNN+Attention SoC Model (canonical, via train_soc_model)...")
+
+        # Route the deployed checkpoint through the one shared trainer used everywhere else
+        # (lstm_cnn_attention_soc.train_soc_model), rather than a divergent inline copy. This
+        # also fixes a real defect: the old inline path saved via save_model_checkpoint(),
+        # which wraps the weights in {'model_state_dict': ...}, but the deployed pipeline
+        # (shared/enhanced_utils.py) loads a *raw* state_dict - so that checkpoint could not
+        # actually be loaded for deployment. train_soc_model() saves a raw state_dict, which
+        # both enhanced_utils.py and evaluate_soc.py load correctly.
+        paths = config.get_paths_config()
+        model_path = paths['models']['soc']
+        os.makedirs(model_path, exist_ok=True)
+        deployed_ckpt = os.path.join(model_path, "lstm_cnn_attention_soc.pth")
+
         cnn_model = LSTMCNNAttentionSoC()
-        
-        train_loader = DataLoader(TensorDataset(
-            torch.tensor(X_train, dtype=torch.float32),
-            torch.tensor(y_train, dtype=torch.float32)
-        ), batch_size=32, shuffle=True)
-        val_loader = DataLoader(TensorDataset(
-            torch.tensor(X_val, dtype=torch.float32),
-            torch.tensor(y_val, dtype=torch.float32)
-        ), batch_size=32, shuffle=False)
-        
-        criterion = nn.MSELoss()
-        optimizer = torch.optim.Adam(cnn_model.parameters(), lr=0.001)
-        
-        patience = 2
-        wait = 0
-        
-        for epoch in range(2):
-            cnn_model.train()
-            train_loss = 0
-            for batch_x, batch_y in train_loader:
-                batch_x, batch_y = batch_x.to(device), batch_y.to(device)
-                
-                optimizer.zero_grad()
-                outputs = cnn_model(batch_x)
-                loss = criterion(outputs, batch_y)
-                loss.backward()
-                optimizer.step()
-                
-                train_loss += loss.item()
-            
-            cnn_model.eval()
-            val_loss = 0
-            with torch.no_grad():
-                for batch_x, batch_y in val_loader:
-                    batch_x, batch_y = batch_x.to(device), batch_y.to(device)
-                    outputs = cnn_model(batch_x)
-                    loss = criterion(outputs, batch_y)
-                    val_loss += loss.item()
-            
-            val_loss /= len(val_loader)
-            train_loss /= len(train_loader)
-            
-            # Calculate regression metrics on validation set
-            cnn_model.eval()
-            val_predictions = []
-            val_targets = []
-            with torch.no_grad():
-                for batch_x, batch_y in val_loader:
-                    batch_x, batch_y = batch_x.to(device), batch_y.to(device)
-                    outputs = cnn_model(batch_x)
-                    val_predictions.extend(outputs.cpu().numpy())
-                    val_targets.extend(batch_y.cpu().numpy())
-            
-            val_predictions = np.array(val_predictions)
-            val_targets = np.array(val_targets)
-            val_metrics = calculate_regression_metrics(val_targets, val_predictions)
-            
-            if val_loss < best_val_loss:
-                best_val_loss = val_loss
-                wait = 0
-                paths = config.get_paths_config()
-                model_path = paths['models']['soc']
-                os.makedirs(model_path, exist_ok=True)
-                
-                # Prepare metrics to save with model
-                final_metrics = {
-                    'val_rmse': val_metrics['rmse'],
-                    'val_mae': val_metrics['mae'],
-                    'val_mape': val_metrics['mape'],
-                    'best_val_loss': best_val_loss,
-                    'training_epochs': epoch + 1,
-                    'model_type': 'lstm_cnn_attention_soc'
-                }
-                
-                # Save model with metrics
-                save_model_checkpoint(cnn_model, optimizer, epoch, val_loss,
-                                    os.path.join(model_path, "lstm_cnn_attention_soc.pth"),
-                                    final_metrics)
-                
-                # Also save metrics separately as JSON for easy loading
-                import json
-                with open(os.path.join(model_path, "lstm_cnn_attention_soc_metrics.json"), 'w') as f:
-                    json.dump(final_metrics, f, indent=2)
-            else:
-                wait += 1
-                if wait >= patience:
-                    print(f"Early stopping at epoch {epoch}")
-                    break
-        
-        X_test_float32 = X_test.astype(np.float32)
-        y_test_float32 = y_test.astype(np.float32)
-        cnn_results = evaluate_soc_model(cnn_model, X_test_float32, y_test_float32, device=device)
-    
+        cnn_model, history = train_soc_model(
+            cnn_model, X_train, y_train, X_val, y_val,
+            epochs=args.epochs, device=device, save_path=deployed_ckpt,
+        )
+
+        # Preserve the existing metrics side-output, sourced from the returned history's
+        # best epoch (val RMSE/MAE are in raw [0,1] scale, same as before).
+        best_idx = int(np.argmin(history["val_rmse"]))
+        final_metrics = {
+            'val_rmse': float(history["val_rmse"][best_idx]),
+            'val_mae': float(history["val_mae"][best_idx]),
+            'training_epochs': len(history["val_rmse"]),
+            'model_type': 'lstm_cnn_attention_soc',
+        }
+        import json
+        with open(os.path.join(model_path, "lstm_cnn_attention_soc_metrics.json"), 'w') as f:
+            json.dump(final_metrics, f, indent=2)
+
+        # Report test metrics in % SoC via the canonical evaluator.
+        cnn_results = evaluate_soc_model(
+            cnn_model, X_test.astype(np.float32), y_test.astype(np.float32), device=device
+        )
+
     print("All SoC training completed!")
 
 
