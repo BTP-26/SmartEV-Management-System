@@ -139,13 +139,13 @@ def evaluate_soc_model(model, X_test, y_test, label="LSTM+CNN+Attention SOC", de
 
 
 if __name__ == "__main__":
-    DATA = "modules/soc/data"
-    X_train = np.load(f"{DATA}/X_train_soc.npy")
-    y_train = np.load(f"{DATA}/y_train_soc.npy")
-    X_val   = np.load(f"{DATA}/X_val_soc.npy")
-    y_val   = np.load(f"{DATA}/y_val_soc.npy")
-    X_test  = np.load(f"{DATA}/X_test_soc.npy")
-    y_test  = np.load(f"{DATA}/y_test_soc.npy")
+    # Load the real, [0,1]-scaled dataset through the shared DatasetLoader (same source as
+    # the deployed pipeline and evaluate_soc.py). This previously loaded an orphaned
+    # *_soc.npy convention that no preprocessing script in the repo produces, so running
+    # this module directly always crashed. modules/train/train_soc.py is the canonical
+    # training entry point; this block is a module self-demo.
+    from shared.dataset_loader import get_dataset_loader
+    X_train, X_val, X_test, y_train, y_val, y_test = get_dataset_loader().load_soc_dataset()
 
     model = LSTMCNNAttentionSoC()
     model, history = train_soc_model(model, X_train, y_train, X_val, y_val)
