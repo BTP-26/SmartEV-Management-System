@@ -27,7 +27,7 @@ from modules.soc.models.lstm_cnn_attention_soc import (
     LSTMCNNAttentionSoC, train_soc_model, evaluate_soc_model
 )
 from shared.dataset_loader import get_dataset_loader
-from shared.train_utils import calculate_regression_metrics
+from shared.train_utils import calculate_regression_metrics, set_seed
 from modules.soc.soc_scale import load_soc_scale, inverse_scale_soc
 from modules.soc.data.preprocess_real_data import CAPACITY_AH
 from modules.soc.models.coulomb_counting import coulomb_counting_soc
@@ -685,9 +685,11 @@ def compute_fixed_vs_adaptive_ablation(log_df: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def train_adaptive_ensemble():
-    """Main function to train adaptive ensemble."""
+def train_adaptive_ensemble(seed: int = 42):
+    """Main function to train adaptive ensemble. `seed` is a reproducibility override for
+    multi-seed experiments (SV-1); it does not change any model/training logic."""
     print("=== Training Adaptive Ensemble SoC Model ===")
+    set_seed(seed)
 
     # Load the same real, [0,1]-scaled dataset the deployed model uses (see
     # shared/dataset_loader.py + config/dataset_config.yaml). Previously this loaded a
@@ -762,4 +764,9 @@ def train_adaptive_ensemble():
 
 
 if __name__ == "__main__":
-    train_adaptive_ensemble()
+    import argparse
+    parser = argparse.ArgumentParser(description="Train the adaptive SoC ensemble")
+    parser.add_argument("--seed", type=int, default=42,
+                        help="Random seed override, for multi-seed experiments (SV-1).")
+    args = parser.parse_args()
+    train_adaptive_ensemble(seed=args.seed)

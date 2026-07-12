@@ -30,6 +30,7 @@ if project_root not in sys.path:
 
 from modules.soc.models.lstm_cnn_attention_soc import LSTMCNNAttentionSoC
 from shared.dataset_loader import get_dataset_loader
+from shared.train_utils import set_seed
 
 IDENTIFIED_PARAMS_PATH = os.path.join(os.path.dirname(__file__), "battery_params_identified.json")
 
@@ -518,10 +519,13 @@ def test_physics_constraints():
     print("Physics constraints test completed!")
 
 
-def create_physics_informed_model():
-    """Main function to create and test the constraint-regularised SoC model."""
+def create_physics_informed_model(seed: int = 42):
+    """Main function to create and test the constraint-regularised SoC model. `seed` is a
+    reproducibility override for multi-seed experiments (SV-1); it does not change any
+    model/training logic."""
     print("=== Creating Constraint-Regularised SoC Model ===")
-    
+    set_seed(seed)
+
     # Test physics constraints
     test_physics_constraints()
     
@@ -561,5 +565,10 @@ def create_physics_informed_model():
 
 
 if __name__ == "__main__":
-    model, params = create_physics_informed_model()
+    import argparse
+    parser = argparse.ArgumentParser(description="Train the constraint-regularised SoC model")
+    parser.add_argument("--seed", type=int, default=42,
+                        help="Random seed override, for multi-seed experiments (SV-1).")
+    args = parser.parse_args()
+    model, params = create_physics_informed_model(seed=args.seed)
     print("Constraint-regularised SoC model created successfully!")

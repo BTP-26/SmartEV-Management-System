@@ -132,19 +132,24 @@ def main():
     parser.add_argument("--subset", type=int, default=0,
                         help="If >0, train on only this many windows (quick smoke run). Default 0 = "
                              "full dataset - the canonical run that regenerates the deployed checkpoint.")
+    parser.add_argument("--seed", type=int, default=None,
+                        help="Random seed override, for multi-seed experiments (SV-1). "
+                             "Default: config system.seed (42).")
 
     args = parser.parse_args()
-    
+
     config = get_config()
-    
+
     if args.device == "auto":
         device = config.get_device()
     else:
         device = torch.device(args.device if torch.cuda.is_available() else "cpu")
-    
+
     print(f"using device: {device}")
-    
-    set_seed(config.get('system.seed', 42))
+
+    seed = args.seed if args.seed is not None else config.get('system.seed', 42)
+    print(f"using seed: {seed}")
+    set_seed(seed)
     
     try:
         print("loading soc datasets...")
@@ -208,7 +213,11 @@ def main():
         paths = config.get_paths_config()
         model_path = paths['models']['soc']
         os.makedirs(model_path, exist_ok=True)
-        deployed_ckpt = os.path.join(model_path, "lstm_cnn_attention_soc.pth")
+        # Default invocation (no --seed) writes the exact same canonical filename as before -
+        # unchanged behavior. An explicit --seed suffixes the filename so multi-seed runs
+        # (SV-1) never collide with the canonical checkpoint or with each other.
+        ckpt_name = "lstm_cnn_attention_soc.pth" if args.seed is None else f"lstm_cnn_attention_soc_seed{args.seed}.pth"
+        deployed_ckpt = os.path.join(model_path, ckpt_name)
 
         cnn_model = LSTMCNNAttentionSoC()
         cnn_model, history = train_soc_model(

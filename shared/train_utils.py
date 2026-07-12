@@ -3,6 +3,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from sklearn.metrics import accuracy_score, f1_score, mean_squared_error, mean_absolute_error, r2_score
 import numpy as np
 import os
+import random
 import time
 from typing import Dict, Tuple, Optional
 
@@ -168,7 +169,10 @@ def create_data_loaders(X_train: np.ndarray, y_train: np.ndarray,
 
 
 def set_seed(seed: int = 42):
-    """Set random seeds for reproducibility."""
+    """Set random seeds for reproducibility. Covers torch/numpy (already relied on by every
+    existing caller) plus Python's own random module (additive - needed for full
+    reproducibility of the GA optimizers, which use random.choice/random.sample directly)."""
+    random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
