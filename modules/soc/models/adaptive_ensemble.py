@@ -68,7 +68,9 @@ class TransformerSoCModel(nn.Module):
 
 
 class PhysicsInformedSoCModel(nn.Module):
-    """Physics-informed neural network for SoC estimation."""
+    """Constraint-regularised neural network for SoC estimation (ensemble sub-model). "Physics-
+    informed" here means loss-level physical constraints, not a physically-calibrated model -
+    see modules/soc/models/physics_informed_soc.py's identical honesty note (B2)."""
     
     def __init__(self, input_dim=3, hidden_dim=128, num_layers=3, dropout=0.2):
         super().__init__()

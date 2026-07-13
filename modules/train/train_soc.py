@@ -123,9 +123,9 @@ def train_lstm_baseline(X_train, y_train, X_val, y_val, device, config=None, pat
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Train SOC Prediction Models")
+    parser = argparse.ArgumentParser(description="Train SoC Prediction Models")
     parser.add_argument("--baseline", action="store_true", help="Train baseline LSTM model only")
-    parser.add_argument("--cnn", action="store_true", help="Train LSTM+CNN+Attention model only")
+    parser.add_argument("--cnn", action="store_true", help="Train LSTM-CNN-Attention model only")
     parser.add_argument("--device", default="auto", help="Device to use (auto/cpu/cuda)")
     parser.add_argument("--epochs", type=int, default=50,
                         help="Training epochs for the deployed LSTM-CNN-Attention model (default 50)")
@@ -201,7 +201,7 @@ def main():
         print(f"MAE: {test_mae:.4f}")
     
     if args.cnn or (not args.baseline):
-        print("\nTraining LSTM+CNN+Attention SoC Model (canonical, via train_soc_model)...")
+        print("\nTraining LSTM-CNN-Attention SoC Model (canonical, via train_soc_model)...")
 
         # Route the deployed checkpoint through the one shared trainer used everywhere else
         # (lstm_cnn_attention_soc.train_soc_model), rather than a divergent inline copy. This
