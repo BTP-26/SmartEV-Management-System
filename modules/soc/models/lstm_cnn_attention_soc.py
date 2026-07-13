@@ -115,7 +115,7 @@ def train_soc_model(
     return model, history
 
 
-def evaluate_soc_model(model, X_test, y_test, label="LSTM+CNN+Attention SOC", device=None):
+def evaluate_soc_model(model, X_test, y_test, label="LSTM-CNN-Attention SoC", device=None):
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.eval()

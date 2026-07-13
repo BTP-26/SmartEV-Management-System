@@ -1,5 +1,5 @@
 
-# Traditional Coulomb Counting baseline for SOC estimation.
+# Traditional Coulomb Counting baseline for SoC estimation.
 #
 # B3: previously this evaluated against a NASA-schema CSV convention
 # (Current_measured/Time columns) that doesn't exist in this repo's actual dataset - no

@@ -2,7 +2,7 @@
 
 
 > **Advanced Intelligent Electric Vehicle Management System**  
-> Multi-objective AI-powered braking intention prediction, battery State-of-Charge estimation, cognitive driver profiling, and physics-informed optimization for next-generation EV energy management
+> GA-optimized AI-powered braking intention prediction, battery State-of-Charge estimation, cognitive driver profiling, and constraint-regularised optimization for next-generation EV energy management
 
 ---
 
@@ -19,9 +19,10 @@
 - **Application**: Collision avoidance, adaptive cruise control, emergency braking systems
 
 ### **2. Advanced SoC Estimation**
-- **Multi-Objective GA Optimized**: RMSE 0.1234, inference 0.28ms
-- **Adaptive Ensemble**: RMSE 0.0880, 3 models with GA-optimized weights
-- **Physics-Informed**: RMSE 0.2524 with battery constraints
+- **Weighted-Objective GA Optimized**: hyperparameter-tuned via genetic algorithm
+- **Adaptive Ensemble**: 3 models with GA-optimized weights
+- **Constraint-Regularised**: trained with battery-physics-informed loss constraints
+- *Performance numbers are provisional pending the current experimental campaign — see `docs/soc_pipeline.md`.*
 - **Input**: 50 timesteps × 3 features (voltage, current, temperature)
 - **Data**: Mendeley Poztato EV dataset (real vehicle driving with regenerative braking)
 - **Features**: Temperature robustness, computational efficiency optimization
@@ -60,8 +61,8 @@
 
 ```bash
 # 1. Clone Repository
-git clone https://github.com/siddharth23k/EV-Smart-Management-System.git
-cd EV-Smart-Management-System
+git clone https://github.com/BTP-26/SmartEV-Management-System.git
+cd SmartEV-Management-System
 
 # 2. Create Virtual Environment
 python -m venv .venv
@@ -79,9 +80,10 @@ python run_complete_pipeline.py
 #   - Run inference demo
 
 # Alternative: Manual Steps
-python modules/data/generate_all_datasets_fixed.py
+# (datasets are generated per-module - see modules/soc/data/preprocess_real_data.py and
+# modules/braking/data/preprocess_real_data.py to regenerate from raw sources)
 python modules/train/train_all_models.py
-python run_complete_pipeline.py --demo-only
+python run_complete_pipeline.py
 ```
 
 ### **Web Interface**
@@ -133,9 +135,9 @@ python modules/train/train_soc.py
   - Physics-based realistic EV simulation
 
    SoC Models:
-  - Multi-Objective GA Optimizer (RMSE: 0.1234)
-  - Adaptive Ensemble (RMSE: 0.0880, 3 models)
-  - Physics-Informed Neural Network (RMSE: 0.2524)
+  - Weighted-Objective GA Optimizer
+  - Adaptive Ensemble (3 models)
+  - Constraint-Regularised Neural Network
   - Cognitive Energy Manager (Adaptation: 0.50+)
 
    Cognitive System:
@@ -165,13 +167,16 @@ python modules/train/train_soc.py
 
 | Metric | Braking Model | SoC Model | System |
 |---------|---------------|-------------|---------|
-| **Test Accuracy** | 82.85% | 98.48% (R²) | - |
-| **Test RMSE** | - | 73.38 | - |
-| **Test MAE** | - | 71.29 | - |
-| **Test MAPE** | - | 98.48% | - |
+| **Test Accuracy** | 82.85% | provisional* | - |
+| **Test RMSE** | - | provisional* | - |
+| **Test MAE** | - | provisional* | - |
+| **Test MAPE** | - | provisional* | - |
 | **Inference Time** | 2.64±1.26ms | 0.8ms | 2.8ms |
 | **Throughput** | 1,483 samples/s | 1,300+ samples/s | 356 samples/s |
 | **Model Size** | 4.2MB (1.1MB quantized) | 2.8MB (0.9MB quantized) | 7.0MB |
+
+*SoC accuracy numbers are being re-validated on a leak-free session-level split (see
+`docs/soc_pipeline.md`) — the previous figures here were computed pre-fix and are not reported.
 
 ### **System Performance**
 
@@ -219,9 +224,9 @@ EV Smart Management System is fully operational!
 
 ### **SoC Dataset: Mendeley Poztato EV Dataset**
 - **Source**: https://data.mendeley.com/datasets/7vdkzpnjgj/2
-- **Usage**: Replace NASA with the Mendeley Poztato EV dataset. It has the same three input features (voltage, current, temperature) plus SoC ground truth, so your existing LSTMCNNAttentionSoC code requires essentially zero changes to run on it.
+- **Usage**: Download and place under `modules/soc/data/`, then run `modules/soc/data/preprocess_real_data.py` to regenerate the windowed `.npy` files. It provides three input features (voltage, current, temperature) plus SoC ground truth, consumed directly by `LSTMCNNAttentionSoC`.
 - **Features**: Real vehicle driving with regenerative braking current
-- **Advantage**: Comes from a real car being driven, not a lab bench, and includes regenerative braking current which directly connects to your paper's core claim about regenerative braking control.
+- **Advantage**: Comes from a real car being driven, not a lab bench, and includes regenerative braking current which directly connects to the paper's core claim about regenerative braking control.
 
 ---
 
@@ -252,30 +257,23 @@ EV Smart Management System is fully operational!
 ## **Project Structure**
 
 ```
-EV-Smart-Management-System/
+SmartEV-Management-System/
 |
 |  ui/                           # User Interface Layer
 |   app.py                        # Web interface dashboard
 |
 |  modules/                       # Core Modules
 |   braking/                     # Braking Intention Module
-|   data/                        # UAH-DriveSet datasets (12,355 windows)
+|   data/                        # UAH-DriveSet preprocessing + windowed datasets
 |   models/                      # Trained models and optimizers
-|   notebooks/                   # Research & development
 |   soc/                         # Battery SoC Module
-|   data/                        # Mendeley Poztato EV datasets (processed)
+|   data/                        # Mendeley Poztato EV preprocessing + windowed datasets
 |   models/                      # Advanced SoC models and optimizers
-|   notebooks/                   # Research & development
-|
-|   data/                        # Data Generation Pipeline
-|   |-- generate_all_datasets_fixed.py
-|   -- real_braking_preprocessor.py
 |
 |   train/                       # Training Scripts
 |   |-- train_all_models.py
 |   |-- train_braking.py
-|   |-- train_soc.py
-|   -- run_full_training.sh
+|   -- train_soc.py
 |
 |--  shared/                      # System Core
 |   |-- config.py                 # Configuration management
@@ -329,20 +327,28 @@ streamlit run ui/app.py
 
 ### ** Centralized Configuration** (`config/default.yaml`)
 
+Excerpt below — that file is the source of truth, refer to it directly rather than this copy.
+
 ```yaml
 system:
-  device: auto                    # Auto-detect GPU/CPU
-  seed: 42                       # Reproducibility
-  
+  device: "auto"                  # Auto-detect GPU/CPU
+  seed: 42                        # Reproducibility
+  debug: false
+
 data:
   braking:
-    sequence_length: 75
-    num_features: 7
-    num_classes: 3
+    window_size: 75
+    features: 7
+    train_split: 0.7
+    val_split: 0.15
+    test_split: 0.15
   soc:
-    sequence_length: 50
-    num_features: 3
-    
+    window_size: 50
+    features: 3
+    train_split: 0.7
+    val_split: 0.15
+    test_split: 0.15
+
 training:
   batch_size: 32
   learning_rate: 0.001
@@ -350,20 +356,22 @@ training:
     braking_baseline: 3
     braking_multitask: 3
     soc_baseline: 2
+    soc_cnn: 2
   patience: 2
-  
+  early_stopping: true
+
 inference:
   quantization: true
-  batch_size: 100
-  validation: true
-  
+  batch_size: 1
+  validate_inputs: true
+
 paths:
   models:
-    braking: modules/braking/models
-    soc: modules/soc/models
+    braking: "modules/braking/models"
+    soc: "modules/soc/models"
   data:
-    braking: modules/braking/data
-    soc: modules/soc/data
+    braking: "modules/braking/data"
+    soc: "modules/soc/data"
 ```
 
 ---

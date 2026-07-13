@@ -14,7 +14,9 @@ if project_root not in sys.path:
 
 
 class DrivingStyle(Enum):
-    """Driver behavior classification."""
+    """Driver behavior classification. Rule-based heuristic (see DriverBehaviorAnalyzer) - not
+    validated against ground-truth labels. No classification-accuracy claim should be made
+    about it (Phase C, task C2)."""
     ECO = "eco"
     NORMAL = "normal"
     AGGRESSIVE = "aggressive"
@@ -55,7 +57,14 @@ class CognitiveState:
 
 
 class DriverBehaviorAnalyzer:
-    """Analyzes driver behavior patterns."""
+    """Analyzes driver behavior patterns using fixed, hand-set thresholds
+    (see classify_driving_style). This is a rule-based heuristic, not a trained/learned
+    classifier, and has not been evaluated against ground-truth labels: the UAH-DriveSet raw
+    data this would require is not present in this repository, and UAH's own behavior
+    categories (Normal/Aggressive/Drowsy) do not map cleanly onto this module's four
+    DrivingStyle categories (Eco/Normal/Aggressive/Conservative) - Drowsy has no corresponding
+    target class, and Eco/Conservative have no corresponding source class. Treat as a heuristic
+    categorization, not a measured classifier (Phase C, task C2)."""
     
     def __init__(self):
         self.braking_history = []
