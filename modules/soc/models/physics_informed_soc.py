@@ -46,6 +46,7 @@ def _load_identified_battery_params() -> Dict[str, float]:
         "internal_resistance": 0.0246,  # R0, Ohm - pack-level, RLS mean across cycles
         "r1_ohm": 0.0513,
         "c1_farad": 847.8,
+        "sample_interval_s": 0.099998,  # Ts, pack current-channel rate after 10x downsampling (L-B4)
         "nominal_capacity": 240.0,  # Ah - see CAPACITY_AH in preprocess_real_data.py
         "min_voltage": 363.75,
         "max_voltage": 456.25,
@@ -63,6 +64,8 @@ def _load_identified_battery_params() -> Dict[str, float]:
     defaults["internal_resistance"] = data["ecm_r0_ohm"]["mean"]
     defaults["r1_ohm"] = data["ecm_r1_ohm"]["mean"]
     defaults["c1_farad"] = data["ecm_c1_farad"]["mean"]
+    if "ecm_ts_s" in data:
+        defaults["sample_interval_s"] = data["ecm_ts_s"]["mean"]
     defaults["nominal_capacity"] = data["provenance"]["capacity_ah"]
     defaults["min_voltage"] = data["voltage"]["min_v"]
     defaults["max_voltage"] = data["voltage"]["max_v"]
@@ -108,6 +111,10 @@ class BatteryPhysicsParams:
     # battery_rls_identification.py for the ARX<->ECM derivation and per-cycle fits.
     r1_ohm: float = _IDENTIFIED["r1_ohm"]
     c1_farad: float = _IDENTIFIED["c1_farad"]
+    # Sample interval for the RC branch's ZOH discretization (L-B4) - the pack
+    # current-channel rate after preprocessing's 10x downsampling, not a per-window
+    # value (the windowed dataset doesn't carry timestamps), see battery_rls_identification.py.
+    sample_interval_s: float = _IDENTIFIED["sample_interval_s"]
 
     # Voltage limits - pack-level, observed extrema/mean (NOT single-cell values)
     min_voltage: float = _IDENTIFIED["min_voltage"]  # V
@@ -129,6 +136,7 @@ class BatteryPhysicsParams:
             'max_discharge_rate': self.max_discharge_rate,
             'r1_ohm': self.r1_ohm,
             'c1_farad': self.c1_farad,
+            'sample_interval_s': self.sample_interval_s,
             'min_voltage': self.min_voltage,
             'max_voltage': self.max_voltage,
             'nominal_voltage': self.nominal_voltage
@@ -221,7 +229,16 @@ class PhysicsInformedSoCModel(nn.Module):
         
         # Physics constraints
         self.physics = physics_params or BatteryPhysicsParams()
-        
+
+        # L-B4: RC-branch (R1, C1) ZOH decay constant, fixed at construction time since
+        # R1/C1/Ts are RLS-identified dataset-level constants, not learned - see
+        # battery_rls_identification.py's header for the continuous ECM and this
+        # discretization (alpha = exp(-Ts/(R1*C1))). Not a nn.Parameter: this must not
+        # be gradient-updated, it is a physical constant, unlike soh_embedding/temp_embedding.
+        self._rc_alpha = float(
+            np.exp(-self.physics.sample_interval_s / (self.physics.r1_ohm * self.physics.c1_farad))
+        )
+
         # Neural network layers
         layers = []
         in_dim = input_dim
@@ -246,7 +263,7 @@ class PhysicsInformedSoCModel(nn.Module):
         
         # Final SoC estimator with constraints
         self.soc_estimator = nn.Sequential(
-            nn.Linear(32 + 10, 16),  # +10 for physics features
+            nn.Linear(32 + 12, 16),  # +12 for physics features (L-B4 added ir_drop_mean, vc_relaxation)
             nn.ReLU(),
             nn.Linear(16, 1),
             nn.Sigmoid()  # Ensure SoC in [0, 1]
@@ -280,20 +297,29 @@ class PhysicsInformedSoCModel(nn.Module):
         
         # Temperature deviation
         temp_deviation = temp_mean - self.temp_embedding
-        
-        # Voltage deviation from nominal
-        voltage_deviation = voltage_mean - self.physics.nominal_voltage
-        
-        # Current rate (simplified)
-        current_rate = torch.std(current, dim=1) if current.dim() > 1 else torch.zeros_like(current_mean)
-        
+
+        # L-B4: R0 IR-drop and R1/C1 RC-branch relaxation voltage, both computed from
+        # `current` alone (a genuine input, not a predicted quantity) so there's no
+        # circularity with the SoC this model is estimating. Vc is reset to 0 at the
+        # start of each window (no continuous state across independent, shuffled
+        # training windows) - since tau (~27s mean) is longer than a 50-step/5s window
+        # at the identified Ts, this under-estimates any relaxation carried in from
+        # before the window started; treat vc_relaxation as an approximation, not a
+        # full simulation of the true RC state.
+        ir_drop_mean = self.physics.internal_resistance * current_mean
+        vc = torch.zeros(current.shape[0], device=x.device, dtype=current.dtype)
+        for t in range(current.shape[1]):
+            vc = self._rc_alpha * vc + self.physics.r1_ohm * (1 - self._rc_alpha) * current[:, t]
+        vc_relaxation = vc
+
         # SoH-adjusted capacity factor
         temp_factor = 1.0 - 0.01 * torch.abs(temp_mean - self.physics.nominal_temp)
         capacity_factor = self.soh_embedding * temp_factor
-        
+
         return torch.stack([
             voltage_mean, voltage_std, current_mean, current_std,
-            temp_mean, temp_std, power, energy, temp_deviation, capacity_factor
+            temp_mean, temp_std, power, energy, temp_deviation, capacity_factor,
+            ir_drop_mean, vc_relaxation
         ], dim=1)
     
     def _apply_physics_constraints(self, soc_pred, physics_features):

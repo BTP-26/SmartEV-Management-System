@@ -191,7 +191,9 @@ class CoulombCountingReferenceSignal(AdaptationReferenceSignal):
     exactly one true-SoC anchor per cycle (cycle["soc"][0]) - a single per-trip reference
     reading (e.g. a full-charge calibration), not continuous ground truth. This is
     exactly what "deployable" means in the CC literature (roadmap L-B2), but it must be
-    stated plainly here, not glossed over."""
+    stated plainly here, not glossed over. Reused below by the standalone L-B2 alpha-fusion
+    baseline as well as by B4's adaptive-ensemble adaptation signal - this class is the
+    shared CC-wrapping utility, not itself "the" L-B2 implementation (see below)."""
 
     def __init__(self, capacity_ah: float = CAPACITY_AH):
         self.capacity_ah = capacity_ah
@@ -200,6 +202,136 @@ class CoulombCountingReferenceSignal(AdaptationReferenceSignal):
         soc_init = cycle["soc"][0] / 100.0  # the one true-SoC anchor this signal uses
         full_cc = coulomb_counting_soc(cycle["curr"], cycle["t"], self.capacity_ah, soc_init=soc_init)
         return full_cc[window_end_indices]
+
+
+# ---------------------------------------------------------------------------------------
+# L-B2: alpha-fusion literature baseline (Carrera, Quiroz, Guevara, Acosta-Vargas, "SoC
+# Estimation ... LSTM Optimized with Genetic Algorithms", Sensors 2025).
+#
+# Deliberately standalone - NOT an AdaptationReferenceSignal subclass. That ABC's
+# predict(cycle, window_end_indices) contract only receives raw cycle data, but this
+# fusion needs both the Coulomb Counting estimate AND the primary LSTM model's own
+# prediction (SOC_hybrid = alpha*SOC_CC + (1-alpha)*SOC_LSTM), which the ABC has no way to
+# supply. This is base paper 2's own standalone deployable model, evaluated as an
+# independent literature-comparison baseline, not a reference signal for adapting the
+# 3-way ensemble above. Needs no new model training: it's a deterministic post-hoc blend
+# of two already-trained/already-deterministic predictors (the deployed LSTMCNNAttentionSoC
+# checkpoint, and coulomb_counting_soc()).
+#
+# The alpha VALUES (0.3/0.5/0.7) are the paper's own dimensionless regime weights, kept as
+# cited defaults - they express "how much to trust CC vs the LSTM at low/medium/high
+# current," which is a modeling choice independent of any particular pack's scale. The
+# CURRENT THRESHOLDS separating those regimes are NOT copied from the paper: their cutoffs
+# (2A/8A) were empirically tuned on a 48-72V pack, and our pack is a full 240Ah/~424V EV
+# pack - a completely different current scale, so reusing their absolute amperes would be
+# meaningless. compute_alpha_fusion_thresholds() below re-derives them from our own data.
+# ---------------------------------------------------------------------------------------
+
+def compute_alpha_fusion_thresholds(X_train: np.ndarray, segment_type: np.ndarray) -> Tuple[float, float]:
+    """Derive our own pack's low/high |current| thresholds for alpha_fusion_weight(), from
+    the real training set's window-end current (X_train[:, -1, 1] - the same granularity
+    alpha_fusion_weight() is actually evaluated at via evaluate_alpha_fusion(), i.e. one
+    instantaneous current reading per window, not every timestep in the window pooled
+    together).
+
+    Method: the 33rd/66.7th percentile of |current|, restricted to `drive`/`regen`
+    windows only (segment_type from B5's metadata, shared.dataset_loader.
+    load_soc_split_metadata()) - deliberately excluding `charge` windows. This is a
+    finding, not an assumption: charge segments are 74.4% of the training set, and
+    checking their current distribution directly showed 55.8% of ALL training samples
+    (pooled across every segment) sit at a single ~0.305A value from the 20th through
+    74th percentile - a regulated/near-constant charge-current setpoint the BMS holds for
+    most of a charge session. Pooling all segments together (an earlier version of this
+    function did) makes the 33rd/67th percentile collapse onto that one plateau value,
+    producing degenerate (low == high) thresholds - verified directly, not assumed. Drive
+    and regen current genuinely varies across a meaningful dynamic range (drive p10=0.11A
+    to p99=3.29A; regen p10=0.11A to p99=2.27A) and is the operating regime the paper's
+    regime-discrimination logic is actually about - charging current is already externally
+    regulated by the BMS, not something that needs CC-vs-LSTM trust to adapt across.
+
+    Why percentiles and not a validation-set RMSE search (which is what the paper itself
+    did on its own pack): a search needs held-out cycles with true SoC to optimize against,
+    and this dataset only has 13-15 usable cycles total (see battery_rls_identification.py) -
+    fitting two extra threshold parameters against that few cycles risks overfitting the
+    thresholds themselves. A plain quantile of the (much larger) windowed current data is a
+    deterministic, reproducible, non-overfit statistic of our own pack's actual current
+    distribution, which is what "appropriate for our battery pack" requires at minimum, even
+    if it is a simpler estimate than the paper's own tuning procedure. alpha_fusion_weight()
+    is still applied to ALL segments (including charge) at inference time - only the
+    threshold *derivation* excludes charge, for the reason above.
+    """
+    window_end_current = X_train[:, -1, 1]
+    dynamic_mask = np.isin(segment_type, ["drive", "regen"])
+    abs_current = np.abs(window_end_current[dynamic_mask])
+    low_threshold = float(np.percentile(abs_current, 33.33))
+    high_threshold = float(np.percentile(abs_current, 66.67))
+    return low_threshold, high_threshold
+
+
+def alpha_fusion_weight(current: np.ndarray, low_threshold: float, high_threshold: float) -> np.ndarray:
+    """Piecewise dynamic fusion weight alpha(|I|), per L-B2 (see module-level note above):
+    favors Coulomb Counting (alpha=0.3) at low current (minimal integration drift), equal
+    trust (0.5) at moderate current, and favors the LSTM (0.7) at high current (CC less
+    reliable under transients) - same directional logic as the source paper, applied at our
+    own pack's thresholds (see compute_alpha_fusion_thresholds)."""
+    abs_current = np.abs(current)
+    alpha = np.full_like(abs_current, 0.5, dtype=np.float64)
+    alpha[abs_current < low_threshold] = 0.3
+    alpha[abs_current >= high_threshold] = 0.7
+    return alpha
+
+
+def alpha_fusion_soc(cc_pred: np.ndarray, lstm_pred: np.ndarray, current: np.ndarray,
+                      low_threshold: float, high_threshold: float) -> np.ndarray:
+    """SOC_hybrid(t) = alpha(t)*SOC_CC(t) + (1-alpha(t))*SOC_LSTM(t) - L-B2's literal 2-way
+    fusion, blended continuously at every timestep (not just as an initial condition)."""
+    alpha = alpha_fusion_weight(current, low_threshold, high_threshold)
+    return alpha * cc_pred + (1 - alpha) * lstm_pred
+
+
+def evaluate_alpha_fusion(lstm_cnn_model: nn.Module, cycle: Dict[str, np.ndarray],
+                           low_threshold: float, high_threshold: float,
+                           capacity_ah: float = CAPACITY_AH, window_size: int = 50,
+                           step: int = 10, device: Optional[torch.device] = None) -> pd.DataFrame:
+    """Evaluate the L-B2 alpha-fusion baseline against one real cycle's ground-truth SoC,
+    alongside its two ingredients (Coulomb Counting alone, the LSTM alone) for comparison -
+    reuses _windows_from_cycle() and CoulombCountingReferenceSignal (both already
+    established for B4), and the already-trained lstm_cnn_model passed in (no retraining).
+    Device auto-detection matches AdaptiveEnsembleSoC.__init__'s pattern (MPS/CUDA/CPU) -
+    previously defaulted to plain CPU regardless of what device lstm_cnn_model actually
+    lived on, which could mismatch a caller's GPU/MPS-resident model."""
+    if device is None:
+        if torch.backends.mps.is_available():
+            device = torch.device("mps")
+        elif torch.cuda.is_available():
+            device = torch.device("cuda")
+        else:
+            device = torch.device("cpu")
+    X_windows, end_indices = _windows_from_cycle(cycle, window_size, step)
+
+    cc_pred = CoulombCountingReferenceSignal(capacity_ah=capacity_ah).predict(cycle, end_indices)
+
+    lstm_cnn_model = lstm_cnn_model.to(device)
+    lstm_cnn_model.eval()
+    with torch.no_grad():
+        x = torch.tensor(X_windows, dtype=torch.float32).to(device)
+        lstm_pred = lstm_cnn_model(x).cpu().numpy()
+
+    window_end_current = cycle["curr"][end_indices]
+    fused_pred = alpha_fusion_soc(cc_pred, lstm_pred, window_end_current, low_threshold, high_threshold)
+
+    scale = load_soc_scale()
+    true_pct = inverse_scale_soc(cycle["soc"][end_indices] / 100.0, scale)
+
+    rows = []
+    for name, pred_unit in [("Coulomb Counting", cc_pred),
+                             ("LSTM-CNN-Attention", lstm_pred),
+                             ("Alpha-Fusion (L-B2)", fused_pred)]:
+        pred_pct = inverse_scale_soc(pred_unit, scale)
+        metrics = calculate_regression_metrics(true_pct, pred_pct)
+        rows.append({"method": name, "rmse_pct_soc": metrics["rmse"], "mae_pct_soc": metrics["mae"],
+                     "n_steps": len(true_pct)})
+    return pd.DataFrame(rows)
 
 
 class AdaptiveEnsembleSoC:
