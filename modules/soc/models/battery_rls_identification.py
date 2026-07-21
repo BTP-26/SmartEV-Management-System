@@ -240,6 +240,10 @@ def run_identification() -> Dict:
         "ecm_r1_ohm": agg("R1_ohm"),
         "ecm_c1_farad": agg("C1_farad"),
         "ecm_tau_s": agg("tau_s"),
+        # L-B4: exposed the same way as R0/R1/C1 above - needed downstream to discretize
+        # the RC branch (alpha = exp(-Ts/(R1*C1))) outside this script, e.g. in
+        # physics_informed_soc.py, without re-deriving it from raw cycle data there.
+        "ecm_ts_s": agg("Ts_s"),
         "per_cycle": per_cycle_params,
     }
 
@@ -248,11 +252,13 @@ def run_identification() -> Dict:
     print(f"\nSaved: {OUTPUT_PATH}")
 
     r0, r1, c1, tau = results["ecm_r0_ohm"], results["ecm_r1_ohm"], results["ecm_c1_farad"], results["ecm_tau_s"]
+    ts = results["ecm_ts_s"]
     print(f"\nIdentified ECM (n={r0['n_cycles']} cycles):")
     print(f"  R0  = {r0['mean']:.4f} +/- {r0['std']:.4f} Ohm")
     print(f"  R1  = {r1['mean']:.4f} +/- {r1['std']:.4f} Ohm")
     print(f"  C1  = {c1['mean']:.1f} +/- {c1['std']:.1f} F")
     print(f"  tau = {tau['mean']:.1f} +/- {tau['std']:.1f} s")
+    print(f"  Ts  = {ts['mean']:.6f} +/- {ts['std']:.6f} s")
     print(f"  Pack voltage: [{results['voltage']['min_v']:.1f}, {results['voltage']['max_v']:.1f}] V, "
           f"mean {results['voltage']['mean_v']:.1f} V")
 
