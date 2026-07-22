@@ -125,6 +125,8 @@ def score_hard(y_true, y_pred, y_prob=None):
 def _build_model(model_name, input_dim, num_classes=2):
     """Return a braking model with a `num_classes` head. Both models expose the
     same (logits, intensity) forward interface so the harness is identical."""
+    if model_name not in ('ours', 'yang'):   # fail fast on typos before loading torch
+        raise ValueError(f"unknown model_name '{model_name}' (expected 'ours' or 'yang')")
     import torch.nn as nn
     if model_name == 'yang':   # base-paper reproduction (Yang et al., 2024)
         from modules.braking.models.yang_lstm_cnn_attention import YangLSTMCNNAttention
@@ -191,7 +193,7 @@ def _train_and_predict(X_tr, y_tr, X_eval, device, epochs, batch_size, lr, seed,
 
 
 # --------------------------- sweep orchestration ---------------------------
-def run_sweep(epochs, seed, debug, eval_split='test', multitask=False, lam=0.3):
+def run_sweep(epochs, seed, debug, eval_split='test', multitask=False, lam=0.3, model_name='ours'):
     manifest = load_manifest()
     horizons = manifest['horizons_s']
 
@@ -202,7 +204,7 @@ def run_sweep(epochs, seed, debug, eval_split='test', multitask=False, lam=0.3):
         epochs = 1
 
     rows = []
-    method = 'multitask' if multitask else 'model'
+    method = 'multitask' if multitask else model_name
     for hi, h in enumerate(horizons):
         y_tr = load_labels('train', hi)[:len(X_tr)]
         y_ev = load_labels(eval_split, hi)
@@ -212,7 +214,7 @@ def run_sweep(epochs, seed, debug, eval_split='test', multitask=False, lam=0.3):
         try:
             preds, probs, int_preds = _train_and_predict(
                 X_tr, y_tr, X_ev, _device(), epochs, 32, 1e-3, seed,
-                yint_tr=yint_tr, lam=lam)
+                yint_tr=yint_tr, lam=lam, model_name=model_name)
             int_mae = float(np.mean(np.abs(int_preds - yint_ev))) if multitask else float('nan')
             rows.append(_row(h, method, y_ev, preds, probs, int_mae))
         except Exception as exc:  # pragma: no cover - surfaces torch/setup issues
@@ -276,13 +278,13 @@ def _plot(rows, horizons, split, model_method):
     print(f"  wrote {path}")
 
 
-def run_lodo(epochs, seed, debug, multitask=False, lam=0.3):
+def run_lodo(epochs, seed, debug, multitask=False, lam=0.3, model_name='ours'):
     """Leave-one-driver-out: train on 5 drivers, test on the held-out one, per
     horizon, and report mean +/- std positive-class F1 across drivers (Reviewer 3.2)."""
     horizons = load_manifest()['horizons_s']
     X_all, driver_all = load_pooled_raw()   # unscaled; scaled per fold below
     drivers = sorted(int(d) for d in np.unique(driver_all))
-    method = 'multitask' if multitask else 'model'
+    method = 'multitask' if multitask else model_name
     print(f"LODO over drivers {drivers} | method={method}")
 
     # labels don't depend on the fold, so load every horizon's arrays once
@@ -305,7 +307,7 @@ def run_lodo(epochs, seed, debug, multitask=False, lam=0.3):
             try:
                 preds, probs, _ = _train_and_predict(
                     X_tr, y_tr, X_te, _device(), 1 if debug else epochs,
-                    32, 1e-3, seed, yint_tr=yint_tr, lam=lam)
+                    32, 1e-3, seed, yint_tr=yint_tr, lam=lam, model_name=model_name)
                 m = score_hard(y_ev, preds, probs)
                 m.update({'horizon_s': h, 'method': method, 'driver': d})
                 rows.append(m); f1_by_h[h].append(m['f1_pos'])
@@ -358,15 +360,17 @@ def main():
     ap.add_argument('--multitask', action='store_true', help="train the intensity head too")
     ap.add_argument('--lam', type=float, default=0.3, help="weight on the intensity MSE loss")
     ap.add_argument('--lodo', action='store_true', help="leave-one-driver-out evaluation")
+    ap.add_argument('--model', default='ours', choices=['ours', 'yang'], help="model to train")
     ap.add_argument('--debug', action='store_true', help="tiny subset + 1 epoch smoke test")
     args = ap.parse_args()
     epochs = args.epochs if args.epochs is not None else _default_epochs()
-    print(f"Horizon sweep | epochs={epochs} seed={args.seed} multitask={args.multitask} "
-          f"lam={args.lam} lodo={args.lodo} debug={args.debug} eval_split={args.eval_split}")
+    print(f"Horizon sweep | model={args.model} epochs={epochs} seed={args.seed} "
+          f"multitask={args.multitask} lam={args.lam} lodo={args.lodo} "
+          f"debug={args.debug} eval_split={args.eval_split}")
     if args.lodo:
-        run_lodo(epochs, args.seed, args.debug, args.multitask, args.lam)
+        run_lodo(epochs, args.seed, args.debug, args.multitask, args.lam, args.model)
     else:
-        run_sweep(epochs, args.seed, args.debug, args.eval_split, args.multitask, args.lam)
+        run_sweep(epochs, args.seed, args.debug, args.eval_split, args.multitask, args.lam, args.model)
 
 
 if __name__ == "__main__":

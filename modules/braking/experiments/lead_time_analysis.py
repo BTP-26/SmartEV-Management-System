@@ -45,9 +45,10 @@ def run(horizon_idx, seed, epochs, debug, model_name='ours'):
         return np.array([])
 
     # correctly anticipated events: predicted brake, real brake ahead (finite ttb)
-    tp = (preds == hs.POS_LABEL) & (y_te == 1) & np.isfinite(ttb)
+    pos = y_te == hs.POS_LABEL
+    tp = (preds == hs.POS_LABEL) & pos & np.isfinite(ttb)
     leads = ttb[tp]
-    caught = float((preds[y_te == 1] == hs.POS_LABEL).mean()) if (y_te == 1).any() else float('nan')
+    caught = float((preds[pos] == hs.POS_LABEL).mean()) if pos.any() else float('nan')
 
     os.makedirs(RESULTS_DIR, exist_ok=True)
     with open(os.path.join(RESULTS_DIR, 'lead_time.csv'), 'w', newline='') as f:
