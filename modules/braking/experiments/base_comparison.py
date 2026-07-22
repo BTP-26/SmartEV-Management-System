@@ -33,7 +33,8 @@ def run(models, seeds, horizon_idx, epochs, debug):
         X_tr, y_tr = X_tr[:512], y_tr[:512]
         epochs, seeds = 1, seeds[:1]
 
-    rows, f1_by_model = [], {}
+    rows = []
+    f1_by_model = {name: {} for name in models}   # name -> {seed: f1_pos}, kept seed-aligned
 
     # non-ML floors (single value, no seeds)
     for name, pred in [('rule', rule_te), ('persist', persist_te)]:
@@ -41,9 +42,8 @@ def run(models, seeds, horizon_idx, epochs, debug):
         rows.append({'model': name, 'seed': '-', **{k: m[k] for k in
                      ('f1_pos', 'precision_pos', 'recall_pos', 'pr_auc')}})
 
-    # ML models across seeds
+    # ML models across seeds (results kept keyed by seed so the paired test aligns)
     for name in models:
-        f1s = []
         for s in seeds:
             try:
                 preds, probs, _ = hs._train_and_predict(
@@ -52,20 +52,24 @@ def run(models, seeds, horizon_idx, epochs, debug):
                 print(f"  {name} seed {s} failed: {exc}")
                 continue
             m = hs.score_hard(y_te, preds, probs)
-            f1s.append(m['f1_pos'])
+            f1_by_model[name][s] = m['f1_pos']
             rows.append({'model': name, 'seed': s, **{k: m[k] for k in
                          ('f1_pos', 'precision_pos', 'recall_pos', 'pr_auc')}})
-        if f1s:
-            f1_by_model[name] = f1s
-            print(f"  {name:6}: F1_pos = {np.mean(f1s):.3f} +/- {np.std(f1s):.3f} (n={len(f1s)})")
+        vals = list(f1_by_model[name].values())
+        if vals:
+            print(f"  {name:6}: F1_pos = {np.mean(vals):.3f} +/- {np.std(vals):.3f} (n={len(vals)})")
 
-    # paired significance: ours vs the base-paper model
-    if 'ours' in f1_by_model and 'yang' in f1_by_model and len(seeds) > 1:
-        t, p = stats.ttest_rel(f1_by_model['ours'], f1_by_model['yang'])
-        print(f"  paired t-test ours vs yang (F1_pos): t={t:.3f}, p={p:.4f}")
-        rows.append({'model': 'ours_vs_yang_ttest', 'seed': '-',
-                     'f1_pos': round(float(t), 4), 'pr_auc': round(float(p), 4),
-                     'precision_pos': '', 'recall_pos': ''})
+    # paired significance: ours vs base-paper, only on seeds where BOTH succeeded
+    if 'ours' in f1_by_model and 'yang' in f1_by_model:
+        common = [s for s in seeds if s in f1_by_model['ours'] and s in f1_by_model['yang']]
+        if len(common) > 1:
+            a = [f1_by_model['ours'][s] for s in common]
+            b = [f1_by_model['yang'][s] for s in common]
+            t, p = stats.ttest_rel(a, b)
+            print(f"  paired t-test ours vs yang (F1_pos, n={len(common)}): t={t:.3f}, p={p:.4f}")
+            rows.append({'model': 'ours_vs_yang_ttest', 'seed': '-',
+                         'f1_pos': round(float(t), 4), 'pr_auc': round(float(p), 4),
+                         'precision_pos': '', 'recall_pos': ''})
 
     os.makedirs(hs.RESULTS_DIR, exist_ok=True)
     path = os.path.join(hs.RESULTS_DIR, 'base_comparison.csv')
