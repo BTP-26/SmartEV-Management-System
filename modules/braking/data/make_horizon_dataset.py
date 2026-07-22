@@ -89,27 +89,30 @@ def _load_trip(trip_path):
     return features, decel, braking, dt
 
 
-def _windows_for_trip(features, decel, braking, horizon_samps):
-    """Emit (window, [label], [intensity], rule, persist) per window.
+def _windows_for_trip(features, decel, braking, horizon_samps, dt, window_size):
+    """Emit (window, [label], [intensity], rule, persist, ttb) per window.
 
-    A window is kept only if its longest look-ahead fits inside the trip, so the
-    window set is identical across horizons.
+    ttb = seconds from window end to the first braking sample in the longest
+    look-ahead (NaN if none) - the true anticipation lead used for L-A3.
+    A window is kept only if its longest look-ahead fits inside the trip.
     """
     n = len(features)
     max_h = max(horizon_samps)
-    out_X, out_y, out_int, out_rule, out_persist = [], [], [], [], []
-    for s in range(0, n - WINDOW_SIZE + 1, STEP_SIZE):
-        e = s + WINDOW_SIZE - 1
+    out_X, out_y, out_int, out_rule, out_persist, out_ttb = [], [], [], [], [], []
+    for s in range(0, n - window_size + 1, STEP_SIZE):
+        e = s + window_size - 1
         if e + max_h >= n:
             break
         y_per_h = [int(braking[e + 1:e + 1 + h].any()) for h in horizon_samps]
         int_per_h = [_peak_intensity(decel[e + 1:e + 1 + h]) for h in horizon_samps]
-        out_X.append(features[s:s + WINDOW_SIZE])
+        nz = np.nonzero(braking[e + 1:e + 1 + max_h])[0]
+        out_ttb.append(float(nz[0] + 1) * dt if len(nz) else float('nan'))
+        out_X.append(features[s:s + window_size])
         out_y.append(y_per_h)
         out_int.append(int_per_h)
         out_rule.append(int(braking[s:e + 1].any()))   # already braking in input window
         out_persist.append(int(braking[e]))            # last input sample braking
-    return out_X, out_y, out_int, out_rule, out_persist
+    return out_X, out_y, out_int, out_rule, out_persist, out_ttb
 
 
 def _trip_level_split(trip_ids, y_ref, fracs=SPLIT_FRACS, seed=RANDOM_STATE):
@@ -153,11 +156,11 @@ def _trip_level_split(trip_ids, y_ref, fracs=SPLIT_FRACS, seed=RANDOM_STATE):
     return idx['train'], idx['val'], idx['test'], assigned
 
 
-def build():
+def build(window_size=WINDOW_SIZE, output_dir=OUTPUT_DIR):
     print("Building binary braking-anticipation dataset (A2/A3/A5)...")
-    print(f"  look-ahead horizons (s): {HORIZONS_S} | split: trip-level {SPLIT_FRACS}")
+    print(f"  window={window_size} | horizons (s): {HORIZONS_S} | split: trip-level {SPLIT_FRACS}")
 
-    all_X, all_y, all_int, all_rule, all_persist = [], [], [], [], []
+    all_X, all_y, all_int, all_rule, all_persist, all_ttb = [], [], [], [], [], []
     all_trip, all_driver, dts = [], [], []
     trip_id = 0
     for driver in sorted(os.listdir(DATA_DIR)):
@@ -174,10 +177,11 @@ def build():
                 continue
             features, decel, braking, dt = loaded
             horizon_samps = [max(1, int(round(h / dt))) for h in HORIZONS_S]
-            Xw, yw, iw, rw, pw = _windows_for_trip(features, decel, braking, horizon_samps)
+            Xw, yw, iw, rw, pw, tb = _windows_for_trip(
+                features, decel, braking, horizon_samps, dt, window_size)
             if Xw:
                 all_X.extend(Xw); all_y.extend(yw); all_int.extend(iw)
-                all_rule.extend(rw); all_persist.extend(pw)
+                all_rule.extend(rw); all_persist.extend(pw); all_ttb.extend(tb)
                 all_trip.extend([trip_id] * len(Xw))
                 all_driver.extend([driver_num] * len(Xw))
                 dts.append(dt)
@@ -191,6 +195,7 @@ def build():
     yint = np.asarray(all_int, dtype=np.float32)       # (Nw, n_horizons)
     rule = np.asarray(all_rule, dtype=np.int64)
     persist = np.asarray(all_persist, dtype=np.int64)
+    ttb = np.asarray(all_ttb, dtype=np.float32)        # time-to-first-brake (s), for L-A3
     trip_ids = np.asarray(all_trip, dtype=np.int64)
     drivers = np.asarray(all_driver, dtype=np.int64)
     print(f"  total windows: {len(X)} from {len(np.unique(trip_ids))} trips, "
@@ -208,7 +213,7 @@ def build():
         ns, nt, nf = arr.shape
         return scaler.transform(arr.reshape(-1, nf)).reshape(ns, nt, nf).astype(np.float32)
 
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    os.makedirs(output_dir, exist_ok=True)
     manifest = {
         'task': 'binary_braking_anticipation',
         'positive_definition': f'braking event (decel < {BRAKE_THRESHOLD} m/s^2) within next Delta s',
@@ -216,33 +221,34 @@ def build():
         'split_method': 'trip-level (no trip spans two splits)',
         'horizons_s': HORIZONS_S,
         'class_names': CLASS_NAMES,
-        'window_size': WINDOW_SIZE,
+        'window_size': window_size,
         'step_size': STEP_SIZE,
         'total_windows': int(len(X)),
         'trips_per_split': {s: len(v) for s, v in assigned.items()},
         'label_distribution': {},
     }
     for split, sidx in splits.items():
-        np.save(os.path.join(OUTPUT_DIR, f'X_{split}.npy'), scale(X[sidx]))
+        np.save(os.path.join(output_dir, f'X_{split}.npy'), scale(X[sidx]))
         # unscaled copy so leave-one-driver-out can fit its scaler per fold
-        np.save(os.path.join(OUTPUT_DIR, f'Xraw_{split}.npy'), X[sidx].astype(np.float32))
-        np.save(os.path.join(OUTPUT_DIR, f'rule_pred_{split}.npy'), rule[sidx])
-        np.save(os.path.join(OUTPUT_DIR, f'persist_pred_{split}.npy'), persist[sidx])
-        np.save(os.path.join(OUTPUT_DIR, f'driver_{split}.npy'), drivers[sidx])
+        np.save(os.path.join(output_dir, f'Xraw_{split}.npy'), X[sidx].astype(np.float32))
+        np.save(os.path.join(output_dir, f'rule_pred_{split}.npy'), rule[sidx])
+        np.save(os.path.join(output_dir, f'persist_pred_{split}.npy'), persist[sidx])
+        np.save(os.path.join(output_dir, f'driver_{split}.npy'), drivers[sidx])
+        np.save(os.path.join(output_dir, f'ttb_{split}.npy'), ttb[sidx])   # L-A3 lead times
         manifest['label_distribution'][split] = {}
         for hi, h in enumerate(HORIZONS_S):
             yh = y[sidx, hi]
             ih = yint[sidx, hi]
-            np.save(os.path.join(OUTPUT_DIR, f'y_h{hi}_{split}.npy'), yh)
-            np.save(os.path.join(OUTPUT_DIR, f'yint_h{hi}_{split}.npy'), ih)
+            np.save(os.path.join(output_dir, f'y_h{hi}_{split}.npy'), yh)
+            np.save(os.path.join(output_dir, f'yint_h{hi}_{split}.npy'), ih)
             dist = _binary_distribution(yh)
             dist['positive_rate'] = round(float(yh.mean()), 4)
             dist['intensity_mean'] = round(float(ih.mean()), 4)
             manifest['label_distribution'][split][f'{h}s'] = dist
 
-    with open(os.path.join(OUTPUT_DIR, 'scaler.pkl'), 'wb') as f:
+    with open(os.path.join(output_dir, 'scaler.pkl'), 'wb') as f:
         pickle.dump(scaler, f)
-    with open(os.path.join(OUTPUT_DIR, 'horizons.json'), 'w') as f:
+    with open(os.path.join(output_dir, 'horizons.json'), 'w') as f:
         json.dump(manifest, f, indent=2)
 
     print(f"  trips per split: {manifest['trips_per_split']}")
@@ -250,10 +256,15 @@ def build():
     for h in HORIZONS_S:
         d = manifest['label_distribution']['test'][f'{h}s']
         print(f"    {h}s: rate={d['positive_rate']:.3f}  Brake={d['Brake']}")
-    print(f"  saved to: {OUTPUT_DIR}")
+    print(f"  saved to: {output_dir}")
     print("Done.")
     return True
 
 
 if __name__ == "__main__":
-    build()
+    import argparse
+    ap = argparse.ArgumentParser(description="Build braking-anticipation dataset")
+    ap.add_argument('--window', type=int, default=WINDOW_SIZE, help="input window size (L-A1 sweep)")
+    ap.add_argument('--outdir', default=OUTPUT_DIR, help="output directory")
+    a = ap.parse_args()
+    build(window_size=a.window, output_dir=a.outdir)

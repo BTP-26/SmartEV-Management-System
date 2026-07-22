@@ -122,28 +122,38 @@ def score_hard(y_true, y_pred, y_prob=None):
 
 
 # --------------------------- model training (needs torch) ---------------------------
+def _build_model(model_name, input_dim, num_classes=2):
+    """Return a braking model with a `num_classes` head. Both models expose the
+    same (logits, intensity) forward interface so the harness is identical."""
+    import torch.nn as nn
+    if model_name == 'yang':   # base-paper reproduction (Yang et al., 2024)
+        from modules.braking.models.yang_lstm_cnn_attention import YangLSTMCNNAttention
+        return YangLSTMCNNAttention(input_dim=input_dim, num_classes=num_classes)
+    from modules.braking.models.multitask_lstm_cnn_attention import MultitaskLSTMCNNAttention
+    model = MultitaskLSTMCNNAttention(input_dim=input_dim)
+    model.classifier[-1] = nn.Linear(model.classifier[-1].in_features, num_classes)
+    return model
+
+
 def _train_and_predict(X_tr, y_tr, X_eval, device, epochs, batch_size, lr, seed,
-                       yint_tr=None, lam=0.0):
+                       yint_tr=None, lam=0.0, model_name='ours'):
     """Train the braking model and predict on X_eval.
 
     Single-task by default (classification only). If yint_tr is given, trains the
     multitask model with loss = CE(class) + lam * MSE(intensity) and also returns
     intensity predictions. Returns (preds, prob_pos, int_preds); int_preds is None
-    in single-task mode.
+    in single-task mode. model_name selects 'ours' or the 'yang' base architecture.
     """
     import torch
     import torch.nn as nn
     from torch.utils.data import DataLoader, TensorDataset
-    from modules.braking.models.multitask_lstm_cnn_attention import MultitaskLSTMCNNAttention
     from modules.train.train_braking import compute_class_weights
 
     torch.manual_seed(seed)
     np.random.seed(seed)
     multitask = yint_tr is not None
 
-    model = MultitaskLSTMCNNAttention(input_dim=X_tr.shape[2])
-    model.classifier[-1] = nn.Linear(model.classifier[-1].in_features, 2)  # binary head
-    model = model.to(device)
+    model = _build_model(model_name, X_tr.shape[2]).to(device)
 
     cls_criterion = nn.CrossEntropyLoss(weight=compute_class_weights(y_tr, 2, device))
     reg_criterion = nn.MSELoss()
