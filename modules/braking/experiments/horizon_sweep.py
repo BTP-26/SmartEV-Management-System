@@ -203,8 +203,11 @@ def run_sweep(epochs, seed, debug, eval_split='test', multitask=False, lam=0.3, 
         X_tr = X_tr[:512]
         epochs = 1
 
+    if model_name == 'yang' and multitask:   # Yang has no real intensity head
+        print("  note: --multitask ignored for the Yang base model (no intensity head)")
+        multitask = False
     rows = []
-    method = 'multitask' if multitask else model_name
+    method = f"{model_name}+mt" if multitask else model_name
     for hi, h in enumerate(horizons):
         y_tr = load_labels('train', hi)[:len(X_tr)]
         y_ev = load_labels(eval_split, hi)
@@ -284,7 +287,10 @@ def run_lodo(epochs, seed, debug, multitask=False, lam=0.3, model_name='ours'):
     horizons = load_manifest()['horizons_s']
     X_all, driver_all = load_pooled_raw()   # unscaled; scaled per fold below
     drivers = sorted(int(d) for d in np.unique(driver_all))
-    method = 'multitask' if multitask else model_name
+    if model_name == 'yang' and multitask:   # Yang has no real intensity head
+        print("  note: --multitask ignored for the Yang base model (no intensity head)")
+        multitask = False
+    method = f"{model_name}+mt" if multitask else model_name
     print(f"LODO over drivers {drivers} | method={method}")
 
     # labels don't depend on the fold, so load every horizon's arrays once
