@@ -99,3 +99,5 @@ modules/soc/models/*_metrics.json
 
 Real-world electric vehicle data driving and charging/
 UAH-DRIVESET-v1/
+
+analysis/

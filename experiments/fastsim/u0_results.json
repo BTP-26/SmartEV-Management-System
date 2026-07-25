@@ -1,0 +1,63 @@
+{
+  "fastsim_version": "3.0.6",
+  "bev_resource": "2022 Tesla Model 3 RWD thrml.yaml",
+  "udds": {
+    "label": "UDDS (built-in)",
+    "steps": 1370,
+    "duration_s": 1369.0,
+    "distance_km": 11.990433188724952,
+    "soc_start": 0.98,
+    "soc_end": 0.9590867437298577,
+    "soc_min": 0.9588013966346999,
+    "soc_max": 0.98,
+    "batt_pwr_min_kw": -25.2011769216076,
+    "batt_pwr_max_kw": 41.03173648364502,
+    "regen_energy_wh": 646.6803098283444,
+    "discharge_energy_wh": 1739.5270112906562,
+    "regen_fraction_of_discharge": 0.37175640598333376,
+    "derived_current_min_a": -59.40591419925416,
+    "derived_current_max_a": 96.72277705823633,
+    "soc_rises_during_regen": true,
+    "regen_energy_positive": true,
+    "any_nan": false,
+    "energy_used_kwh": 1.1293158385876836,
+    "efficiency_km_per_kwh": 10.617431172948148
+  },
+  "synthetic": {
+    "label": "synthetic accel-brake",
+    "steps": 121,
+    "duration_s": 120.0,
+    "distance_km": 1.3125,
+    "soc_start": 0.98,
+    "soc_end": 0.9780062732976056,
+    "soc_min": 0.9772574305537045,
+    "soc_max": 0.98,
+    "batt_pwr_min_kw": -28.968026680966727,
+    "batt_pwr_max_kw": 31.840954788323874,
+    "regen_energy_wh": 42.48991306394898,
+    "discharge_energy_wh": 147.249241924799,
+    "regen_fraction_of_discharge": 0.2885577712219993,
+    "derived_current_min_a": -68.2853865469962,
+    "derived_current_max_a": 75.0576464766486,
+    "soc_rises_during_regen": true,
+    "regen_energy_positive": true,
+    "any_nan": false
+  },
+  "pack_comparison": {
+    "fastsim_bev_capacity_kwh": 54.0,
+    "fastsim_bev_nominal_voltage_v": null,
+    "mendeley_capacity_kwh": 101.81,
+    "mendeley_nominal_voltage_v": 424.22,
+    "capacity_ratio_mendeley_over_fastsim": 1.89,
+    "voltage_note": "FASTSim-3 exposes no pack voltage or current (RES is an energy/power reservoir). Battery current is DERIVED as power / assumed_voltage using the Mendeley nominal (424.22 V). This is a documented limitation, not a fundamental mismatch: the coupling runs on SoC + battery power + regen energy, all of which are native."
+  },
+  "exit_criteria": {
+    "install_and_example_ran": true,
+    "soc_trajectory_extractable": true,
+    "battery_power_nontrivial": true,
+    "regen_energy_positive": true,
+    "soc_rises_during_regen": true,
+    "derived_current_sane": true
+  },
+  "all_exit_criteria_met": true
+}
