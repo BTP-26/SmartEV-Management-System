@@ -1,0 +1,16 @@
+# FASTSim environment for Track U (unification co-simulation) — SEPARATE from the main
+# requirements.txt on purpose. Install into a DEDICATED venv, not the main project venv:
+#
+#     python3.11 -m venv .venv-fastsim
+#     .venv-fastsim/bin/python -m pip install -r experiments/fastsim/requirements-fastsim.txt
+#
+# Why a dedicated env (see experiments/fastsim/U0_FINDINGS.md, Issue 2): installing fastsim
+# downgrades the main pipeline's numpy (2.4.6 -> 2.3.2) and PyYAML (6.0.3 -> 6.0.2) and pulls a
+# large notebook/dev toolchain (jupyter, ipykernel, debugpy, pyzmq, tornado, polars). None of that
+# is needed by the SoC/braking training pipeline, and it must not perturb its pinned dependencies.
+#
+# Only ONE genuine Track-U dependency is declared; pip resolves fastsim's own transitive deps
+# (numpy, pandas, polars, matplotlib, etc.). We deliberately do NOT pin the transient jupyter/dev
+# tooling here — it is not a project dependency, only an artifact of fastsim's install.
+
+fastsim==3.0.6   # NREL vehicle-energy simulator; the physics co-simulation engine for Track U (U-0 validated)

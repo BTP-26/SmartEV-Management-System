@@ -1,0 +1,74 @@
+{
+  "meta": {
+    "baseline_vehicle": "2022 Tesla Model 3 RWD thrml.yaml",
+    "assumptions": {
+      "pack_specific_energy_wh_per_kg": 150.0,
+      "pack_power_scales_with_capacity": true,
+      "mass_adjusted_for_pack": true,
+      "nominal_voltage_settable": false,
+      "voltage_note": "FASTSim-3 RES has no voltage/current; current stays derived (P/V).",
+      "chemistry_modeled": false
+    },
+    "modified": {
+      "battery_capacity_kwh": {
+        "base": 54.0,
+        "new": 101.81,
+        "ratio": 1.885
+      },
+      "pack_max_power_kw": {
+        "base": 201.2,
+        "new": 379.4,
+        "mendeley_observed_peak_kw": 351.5
+      },
+      "vehicle_mass_kg": {
+        "base": 1752.0,
+        "new": 2070.8,
+        "delta": 318.8
+      }
+    },
+    "inherited": {
+      "motor_max_power_kw": 239.0,
+      "drag_coef": 0.23,
+      "frontal_area_m2": 2.22,
+      "wheel_rr_coef": 0.007,
+      "drive_type": "RWD",
+      "aux_base_w": 250.0,
+      "note": "motor, aero/rolling chassis, regen (electric-machine) map, thermal, aux \u2014 all inherited unchanged from the Tesla Model 3 baseline."
+    },
+    "not_modeled": [
+      "pack nominal voltage",
+      "pack current",
+      "cell chemistry",
+      "cell/module config"
+    ]
+  },
+  "sanity_sim_udds": {
+    "baseline_tesla_m3": {
+      "distance_km": 11.99,
+      "soc_start": 0.98,
+      "soc_end": 0.9591,
+      "soc_drop_pct": 2.091,
+      "energy_kwh": 1.129,
+      "km_per_kwh": 10.62,
+      "regen_wh": 646.7,
+      "batt_pwr_max_kw": 41.0,
+      "batt_pwr_min_kw": -25.2,
+      "any_nan": false
+    },
+    "mendeley_like_bev": {
+      "distance_km": 11.99,
+      "soc_start": 0.98,
+      "soc_end": 0.9676,
+      "soc_drop_pct": 1.239,
+      "energy_kwh": 1.262,
+      "km_per_kwh": 9.5,
+      "regen_wh": 774.9,
+      "batt_pwr_max_kw": 48.2,
+      "batt_pwr_min_kw": -29.9,
+      "any_nan": false
+    }
+  },
+  "reusable_artifact": "experiments/fastsim/mendeley_like_bev.yaml",
+  "reload_matches_target": true,
+  "simulates_ok": true
+}
