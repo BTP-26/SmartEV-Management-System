@@ -86,22 +86,27 @@ def validate_arrays(time_s, speed_mps):
 
 
 # --------------------------- FASTSim cycle build (needs fastsim) ---------------------------
-LAUNCH_ACCEL_MPS2 = 0.5    # gentle, powertrain-feasible ramp from rest at trip start
+U1_MAX_PROP_W = 44717.0    # U-1 BEV max propulsion power (from u1_vehicle_params.json); used only to
+U1_MASS_KG = 2070.8        # condition the speed trace so FASTSim can follow it - U-1 is never modified.
+PROP_BUDGET = 0.7          # fraction of max power reserved for accel (rest: drag/rolling/grade)
 
 
-def ensure_feasible_start(time_s, speed_mps, max_accel=LAUNCH_ACCEL_MPS2):
-    """FASTSim launches the vehicle from rest. UAH GPS trips often start already
-    moving, so the first 1 Hz step would demand impossible tractive power. Prepend
-    a gentle 0 -> first-speed ramp (uniform 1 Hz) so the trace is followable.
-    Returns (time, speed); a no-op if the trip already starts near rest."""
-    v = np.asarray(speed_mps, float)
-    v0 = float(v[0])
-    if v0 <= 0.5:
-        return np.asarray(time_s, float), v
-    n_ramp = int(np.ceil(v0 / max_accel))
-    ramp = np.linspace(0.0, v0, n_ramp + 1)[:-1]     # 0..v0, excludes v0 (first real sample)
-    v_new = np.concatenate([ramp, v])
-    return np.arange(len(v_new), dtype=float), v_new  # re-grid to uniform 1 Hz from 0
+def condition_speed(time_s, speed_mps, max_prop_w=U1_MAX_PROP_W, mass_kg=U1_MASS_KG):
+    """Cap each 1 Hz step's acceleration to what the powertrain can deliver at the
+    achieved speed (the vehicle launches from rest). Solves m*(v-v_prev)*v <= budget
+    for the max next speed. Fixes both mid-motion starts and interior GPS spikes
+    that otherwise make FASTSim fail to meet the speed trace. Deceleration is left
+    untouched (friction braking is not propulsion-limited); feasible driving passes
+    through unchanged - only infeasible steps are lowered."""
+    v = np.asarray(speed_mps, float).copy()
+    budget = PROP_BUDGET * max_prop_w
+    prev = 0.0                                        # FASTSim starts the vehicle at rest
+    for i in range(len(v)):
+        v_max = (prev + np.sqrt(prev * prev + 4.0 * budget / mass_kg)) / 2.0
+        if v[i] > v_max:
+            v[i] = v_max
+        prev = v[i]
+    return np.asarray(time_s, float), v
 
 
 def cycle_from_arrays(time_s, speed_mps, grade=0.0):
@@ -109,7 +114,7 @@ def cycle_from_arrays(time_s, speed_mps, grade=0.0):
     speed traces. Resizes every per-timestep field to our length (FASTSim needs
     grade/elev/pwr_* all equal length); flat road (grade=0)."""
     import fastsim as fsim
-    time_s, speed_mps = ensure_feasible_start(time_s, speed_mps)
+    time_s, speed_mps = condition_speed(time_s, speed_mps)
     d = fsim.Cycle.from_resource("udds.csv").to_pydict()   # schema-correct template
     n = len(time_s)
     tmpl_len = len(d["time_seconds"])

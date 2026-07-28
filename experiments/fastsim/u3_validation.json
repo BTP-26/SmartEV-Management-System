@@ -1,19 +1,72 @@
 {
-  "note": "SIMULATION - braking->regen coupling ablation (U-3)",
-  "cycle": "normal",
-  "regen_energy_wh": {
-    "baseline": 416.29,
-    "anticipatory": 371.34,
-    "gain_wh": -44.95,
-    "gain_pct": -10.8
-  },
-  "soc_end": {
-    "baseline": 0.95688,
-    "anticipatory": 0.95704
-  },
-  "energy_used_kwh": {
-    "baseline": 2.354,
-    "anticipatory": 2.337
+  "note": "SIMULATION - braking->regen coupling ablation (U-3); benefit metric = net energy per km (early-coast anticipation)",
+  "cycles": {
+    "normal": {
+      "wh_per_km": {
+        "baseline": 138.86,
+        "anticipatory": 137.89,
+        "saved": 0.97,
+        "saved_pct": 0.7
+      },
+      "distance_km": {
+        "baseline": 16.561,
+        "anticipatory": 16.564
+      },
+      "regen_energy_wh": {
+        "baseline": 375.09,
+        "anticipatory": 336.92
+      },
+      "soc_end": {
+        "baseline": 0.95741,
+        "anticipatory": 0.95757
+      },
+      "intervened": true,
+      "any_nan": false
+    },
+    "aggressive": {
+      "wh_per_km": {
+        "baseline": 179.29,
+        "anticipatory": 176.62,
+        "saved": 2.67,
+        "saved_pct": 1.49
+      },
+      "distance_km": {
+        "baseline": 23.982,
+        "anticipatory": 23.891
+      },
+      "regen_energy_wh": {
+        "baseline": 808.97,
+        "anticipatory": 661.06
+      },
+      "soc_end": {
+        "baseline": 0.93777,
+        "anticipatory": 0.93856
+      },
+      "intervened": true,
+      "any_nan": false
+    },
+    "drowsy": {
+      "wh_per_km": {
+        "baseline": 137.2,
+        "anticipatory": 135.59,
+        "saved": 1.61,
+        "saved_pct": 1.17
+      },
+      "distance_km": {
+        "baseline": 25.101,
+        "anticipatory": 25.067
+      },
+      "regen_energy_wh": {
+        "baseline": 634.42,
+        "anticipatory": 537.31
+      },
+      "soc_end": {
+        "baseline": 0.94617,
+        "anticipatory": 0.94662
+      },
+      "intervened": true,
+      "any_nan": false
+    }
   },
   "any_nan": false
 }
