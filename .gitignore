@@ -104,3 +104,5 @@ UAH-DRIVESET-v1/
 analysis/
 # FASTSim generated drive cycles (regenerable)
 experiments/fastsim/cycles/
+# U-4 per-run simulation time series (regenerable; ~1.2 MB)
+experiments/fastsim/u4_timeseries/
