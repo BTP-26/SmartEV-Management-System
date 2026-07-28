@@ -104,6 +104,17 @@ def build_mendeley_bev(target_kwh: float = MENDELEY_CAP_KWH,
     return veh2, meta
 
 
+def max_fwd_propulsion_power_w(veh=None) -> float:
+    """Maximum forward propulsion power (W) of the U-1 vehicle, read from the
+    parameterized FASTSim vehicle itself (the electric machine's peak mechanical
+    output). This is the single source of truth for downstream speed-trace
+    conditioning (U-2/U-3) - callers must NOT hardcode it. Builds the vehicle if
+    one is not supplied; the vehicle is never modified."""
+    if veh is None:
+        veh, _ = build_mendeley_bev()
+    return float(veh.to_pydict()["pt_type"]["BEV"]["em"]["pwr_out_max_watts"])
+
+
 def save_vehicle(veh, path: Path = MENDELEY_BEV_YAML) -> Path:
     """Serialize the configured vehicle for reuse by U-2..U-4 (load via Vehicle.from_file)."""
     veh.to_file(str(path))

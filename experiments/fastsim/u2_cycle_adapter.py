@@ -86,20 +86,44 @@ def validate_arrays(time_s, speed_mps):
 
 
 # --------------------------- FASTSim cycle build (needs fastsim) ---------------------------
-U1_MAX_PROP_W = 44717.0    # U-1 BEV max propulsion power (from u1_vehicle_params.json); used only to
-U1_MASS_KG = 2070.8        # condition the speed trace so FASTSim can follow it - U-1 is never modified.
-PROP_BUDGET = 0.7          # fraction of max power reserved for accel (rest: drag/rolling/grade)
+U1_MASS_KG = 2070.8        # U-1 BEV mass; used to size the acceleration budget (U-1 never modified).
+# Fraction of the vehicle's PEAK forward propulsion power usable to condition the
+# launch/spike region. The peak (read from U-1 at runtime, see _max_fwd_prop_power_w)
+# is only reached near base speed; at the near-zero speeds this conditioner targets
+# the motor is torque-limited, so only a small fraction is actually available
+# (~45 kW of the 239 kW peak for this vehicle, as FASTSim reports at low speed).
+# Keeps conditioned launches FASTSim-followable: lower it if a launch still fails
+# "to meet speed trace", raise it if cycles look over-smoothed.
+ACCEL_POWER_FRACTION = 0.131
+
+_MAX_PROP_W = None         # cached max forward propulsion power, read once from U-1 (C-1)
 
 
-def condition_speed(time_s, speed_mps, max_prop_w=U1_MAX_PROP_W, mass_kg=U1_MASS_KG):
+def _max_fwd_prop_power_w():
+    """Read the U-1 vehicle's max forward propulsion power at runtime (cached).
+    Single source of truth = the parameterized FASTSim vehicle, via vehicle_config;
+    never hardcoded here."""
+    global _MAX_PROP_W
+    if _MAX_PROP_W is None:
+        sys.path.insert(0, str(HERE))
+        from vehicle_config import max_fwd_propulsion_power_w   # U-1 (imported, never modified)
+        _MAX_PROP_W = max_fwd_propulsion_power_w()
+    return _MAX_PROP_W
+
+
+def condition_speed(time_s, speed_mps, max_prop_w=None, mass_kg=U1_MASS_KG):
     """Cap each 1 Hz step's acceleration to what the powertrain can deliver at the
     achieved speed (the vehicle launches from rest). Solves m*(v-v_prev)*v <= budget
-    for the max next speed. Fixes both mid-motion starts and interior GPS spikes
-    that otherwise make FASTSim fail to meet the speed trace. Deceleration is left
-    untouched (friction braking is not propulsion-limited); feasible driving passes
-    through unchanged - only infeasible steps are lowered."""
+    for the max next speed, where budget = ACCEL_POWER_FRACTION * the U-1 vehicle's
+    max forward propulsion power (read at runtime, not hardcoded). Fixes both
+    mid-motion starts and interior GPS spikes that otherwise make FASTSim fail to
+    meet the speed trace. Deceleration is left untouched (friction braking is not
+    propulsion-limited); feasible driving passes through unchanged - only infeasible
+    steps are lowered."""
     v = np.asarray(speed_mps, float).copy()
-    budget = PROP_BUDGET * max_prop_w
+    if max_prop_w is None:
+        max_prop_w = _max_fwd_prop_power_w()
+    budget = ACCEL_POWER_FRACTION * max_prop_w
     prev = 0.0                                        # FASTSim starts the vehicle at rest
     for i in range(len(v)):
         v_max = (prev + np.sqrt(prev * prev + 4.0 * budget / mass_kg)) / 2.0
