@@ -3,6 +3,7 @@
 venv/
 ENV/
 env/
+.venv-fastsim/
 
 # Python cache
 __pycache__/
