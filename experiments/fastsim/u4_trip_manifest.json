@@ -1,0 +1,1080 @@
+{
+  "note": "SIMULATION; UAH trip enumeration with include/exclude reasons",
+  "config": {
+    "accel_power_fraction": 0.131,
+    "brake_trigger_w": 45000.0,
+    "lead_s": 4,
+    "min_drop_mps": 1.0,
+    "intent_lead_s": 3,
+    "intent_decel_thresh_mps2": 0.5,
+    "max_gps_gap_s": 10.0,
+    "min_duration_s": 60.0,
+    "min_distance_km": 0.5,
+    "oracle_upper_bound": true,
+    "simulation": true
+  },
+  "n_enumerated": 40,
+  "n_included": 37,
+  "clipping_gate": {
+    "gate": "clipping_style_correlation",
+    "checked": [
+      {
+        "road": "MOTORWAY",
+        "aggressive_clip_pct": 23.21,
+        "normal_clip_pct": 8.9,
+        "excess_pp": 14.31,
+        "passed": false
+      },
+      {
+        "road": "SECONDARY",
+        "aggressive_clip_pct": 13.86,
+        "normal_clip_pct": 5.71,
+        "excess_pp": 8.15,
+        "passed": false
+      }
+    ],
+    "passed": false
+  },
+  "trips": [
+    {
+      "trip": "20151110175712-16km-D1-NORMAL1-SECONDARY",
+      "driver": "D1",
+      "style": "NORMAL",
+      "road": "SECONDARY",
+      "label_distance": "16km",
+      "path": "/Users/dhananjaytiwari/Downloads/CODING/PROJECTS/SmartEV-Management-System/UAH-DRIVESET-v1/D1/20151110175712-16km-D1-NORMAL1-SECONDARY",
+      "gps": {
+        "n_fixes": 624,
+        "median_dt_s": 1.0,
+        "max_gap_s": 1.18,
+        "n_gaps_over_threshold": 0,
+        "gap_ok": true
+      },
+      "included": true,
+      "reason": "ok",
+      "duration_s": 623.0,
+      "distance_km": 16.662,
+      "clipping": {
+        "clip_rate": 0.09135,
+        "n_clipped": 57,
+        "mean_clip_err_mps": 2.0271,
+        "max_clip_err_mps": 14.2228,
+        "distance_delta_pct": -0.6509
+      }
+    },
+    {
+      "trip": "20151110180824-16km-D1-NORMAL2-SECONDARY",
+      "driver": "D1",
+      "style": "NORMAL",
+      "road": "SECONDARY",
+      "label_distance": "16km",
+      "path": "/Users/dhananjaytiwari/Downloads/CODING/PROJECTS/SmartEV-Management-System/UAH-DRIVESET-v1/D1/20151110180824-16km-D1-NORMAL2-SECONDARY",
+      "gps": {
+        "n_fixes": 627,
+        "median_dt_s": 1.0,
+        "max_gap_s": 1.13,
+        "n_gaps_over_threshold": 0,
+        "gap_ok": true
+      },
+      "included": true,
+      "reason": "ok",
+      "duration_s": 626.0,
+      "distance_km": 16.165,
+      "clipping": {
+        "clip_rate": 0.0638,
+        "n_clipped": 40,
+        "mean_clip_err_mps": 3.8913,
+        "max_clip_err_mps": 14.3616,
+        "distance_delta_pct": -0.9188
+      }
+    },
+    {
+      "trip": "20151111123124-25km-D1-NORMAL-MOTORWAY",
+      "driver": "D1",
+      "style": "NORMAL",
+      "road": "MOTORWAY",
+      "label_distance": "25km",
+      "path": "/Users/dhananjaytiwari/Downloads/CODING/PROJECTS/SmartEV-Management-System/UAH-DRIVESET-v1/D1/20151111123124-25km-D1-NORMAL-MOTORWAY",
+      "gps": {
+        "n_fixes": 864,
+        "median_dt_s": 1.0,
+        "max_gap_s": 1.14,
+        "n_gaps_over_threshold": 0,
+        "gap_ok": true
+      },
+      "included": true,
+      "reason": "ok",
+      "duration_s": 863.0,
+      "distance_km": 25.745,
+      "clipping": {
+        "clip_rate": 0.07407,
+        "n_clipped": 64,
+        "mean_clip_err_mps": 2.7552,
+        "max_clip_err_mps": 17.5713,
+        "distance_delta_pct": -0.6851
+      }
+    },
+    {
+      "trip": "20151111125233-24km-D1-AGGRESSIVE-MOTORWAY",
+      "driver": "D1",
+      "style": "AGGRESSIVE",
+      "road": "MOTORWAY",
+      "label_distance": "24km",
+      "path": "/Users/dhananjaytiwari/Downloads/CODING/PROJECTS/SmartEV-Management-System/UAH-DRIVESET-v1/D1/20151111125233-24km-D1-AGGRESSIVE-MOTORWAY",
+      "gps": {
+        "n_fixes": 737,
+        "median_dt_s": 1.0,
+        "max_gap_s": 1.19,
+        "n_gaps_over_threshold": 0,
+        "gap_ok": true
+      },
+      "included": true,
+      "reason": "ok",
+      "duration_s": 736.0,
+      "distance_km": 24.57,
+      "clipping": {
+        "clip_rate": 0.21303,
+        "n_clipped": 157,
+        "mean_clip_err_mps": 3.8926,
+        "max_clip_err_mps": 22.5839,
+        "distance_delta_pct": -2.4412
+      }
+    },
+    {
+      "trip": "20151111132348-25km-D1-DROWSY-MOTORWAY",
+      "driver": "D1",
+      "style": "DROWSY",
+      "road": "MOTORWAY",
+      "label_distance": "25km",
+      "path": "/Users/dhananjaytiwari/Downloads/CODING/PROJECTS/SmartEV-Management-System/UAH-DRIVESET-v1/D1/20151111132348-25km-D1-DROWSY-MOTORWAY",
+      "gps": {
+        "n_fixes": 939,
+        "median_dt_s": 1.0,
+        "max_gap_s": 1.15,
+        "n_gaps_over_threshold": 0,
+        "gap_ok": true
+      },
+      "included": true,
+      "reason": "ok",
+      "duration_s": 938.0,
+      "distance_km": 25.331,
+      "clipping": {
+        "clip_rate": 0.08413,
+        "n_clipped": 79,
+        "mean_clip_err_mps": 2.9089,
+        "max_clip_err_mps": 15.9728,
+        "distance_delta_pct": -0.9076
+      }
+    },
+    {
+      "trip": "20151111134545-16km-D1-AGGRESSIVE-SECONDARY",
+      "driver": "D1",
+      "style": "AGGRESSIVE",
+      "road": "SECONDARY",
+      "label_distance": "16km",
+      "path": "/Users/dhananjaytiwari/Downloads/CODING/PROJECTS/SmartEV-Management-System/UAH-DRIVESET-v1/D1/20151111134545-16km-D1-AGGRESSIVE-SECONDARY",
+      "gps": {
+        "n_fixes": 515,
+        "median_dt_s": 1.0,
+        "max_gap_s": 1.15,
+        "n_gaps_over_threshold": 0,
+        "gap_ok": true
+      },
+      "included": true,
+      "reason": "ok",
+      "duration_s": 514.0,
+      "distance_km": 16.013,
+      "clipping": {
+        "clip_rate": 0.12621,
+        "n_clipped": 65,
+        "mean_clip_err_mps": 5.9873,
+        "max_clip_err_mps": 24.0005,
+        "distance_delta_pct": -2.3545
+      }
+    },
+    {
+      "trip": "20151111135612-13km-D1-DROWSY-SECONDARY",
+      "driver": "D1",
+      "style": "DROWSY",
+      "road": "SECONDARY",
+      "label_distance": "13km",
+      "path": "/Users/dhananjaytiwari/Downloads/CODING/PROJECTS/SmartEV-Management-System/UAH-DRIVESET-v1/D1/20151111135612-13km-D1-DROWSY-SECONDARY",
+      "gps": {
+        "n_fixes": 500,
+        "median_dt_s": 1.0,
+        "max_gap_s": 1.27,
+        "n_gaps_over_threshold": 0,
+        "gap_ok": true
+      },
+      "included": true,
+      "reason": "ok",
+      "duration_s": 500.0,
+      "distance_km": 13.347,
+      "clipping": {
+        "clip_rate": 0.06188,
+        "n_clipped": 31,
+        "mean_clip_err_mps": 4.0739,
+        "max_clip_err_mps": 16.0005,
+        "distance_delta_pct": -0.8865
+      }
+    },
+    {
+      "trip": "20151120131714-26km-D2-NORMAL-MOTORWAY",
+      "driver": "D2",
+      "style": "NORMAL",
+      "road": "MOTORWAY",
+      "label_distance": "26km",
+      "path": "/Users/dhananjaytiwari/Downloads/CODING/PROJECTS/SmartEV-Management-System/UAH-DRIVESET-v1/D2/20151120131714-26km-D2-NORMAL-MOTORWAY",
+      "gps": {
+        "n_fixes": 933,
+        "median_dt_s": 1.0,
+        "max_gap_s": 1.13,
+        "n_gaps_over_threshold": 0,
+        "gap_ok": true
+      },
+      "included": true,
+      "reason": "ok",
+      "duration_s": 932.0,
+      "distance_km": 25.624,
+      "clipping": {
+        "clip_rate": 0.15756,
+        "n_clipped": 147,
+        "mean_clip_err_mps": 1.5329,
+        "max_clip_err_mps": 13.8894,
+        "distance_delta_pct": -0.8522
+      }
+    },
+    {
+      "trip": "20151120133502-26km-D2-AGGRESSIVE-MOTORWAY",
+      "driver": "D2",
+      "style": "AGGRESSIVE",
+      "road": "MOTORWAY",
+      "label_distance": "26km",
+      "path": "/Users/dhananjaytiwari/Downloads/CODING/PROJECTS/SmartEV-Management-System/UAH-DRIVESET-v1/D2/20151120133502-26km-D2-AGGRESSIVE-MOTORWAY",
+      "gps": {
+        "n_fixes": 854,
+        "median_dt_s": 1.0,
+        "max_gap_s": 1.17,
+        "n_gaps_over_threshold": 0,
+        "gap_ok": true
+      },
+      "included": true,
+      "reason": "ok",
+      "duration_s": 853.0,
+      "distance_km": 25.569,
+      "clipping": {
+        "clip_rate": 0.32436,
+        "n_clipped": 277,
+        "mean_clip_err_mps": 1.868,
+        "max_clip_err_mps": 18.2228,
+        "distance_delta_pct": -1.9877
+      }
+    },
+    {
+      "trip": "20151120135152-25km-D2-DROWSY-MOTORWAY",
+      "driver": "D2",
+      "style": "DROWSY",
+      "road": "MOTORWAY",
+      "label_distance": "25km",
+      "path": "/Users/dhananjaytiwari/Downloads/CODING/PROJECTS/SmartEV-Management-System/UAH-DRIVESET-v1/D2/20151120135152-25km-D2-DROWSY-MOTORWAY",
+      "gps": {
+        "n_fixes": 927,
+        "median_dt_s": 1.0,
+        "max_gap_s": 1.25,
+        "n_gaps_over_threshold": 0,
+        "gap_ok": true
+      },
+      "included": false,
+      "reason": "powertrain limit exceeded (transmission `pwr_out_req`: -253 kW)",
+      "duration_s": 926.0,
+      "distance_km": 25.412,
+      "clipping": {
+        "clip_rate": 0.12945,
+        "n_clipped": 120,
+        "mean_clip_err_mps": 1.7394,
+        "max_clip_err_mps": 14.1394,
+        "distance_delta_pct": -0.7935
+      }
+    },
+    {
+      "trip": "20151120160904-16km-D2-NORMAL1-SECONDARY",
+      "driver": "D2",
+      "style": "NORMAL",
+      "road": "SECONDARY",
+      "label_distance": "16km",
+      "path": "/Users/dhananjaytiwari/Downloads/CODING/PROJECTS/SmartEV-Management-System/UAH-DRIVESET-v1/D2/20151120160904-16km-D2-NORMAL1-SECONDARY",
+      "gps": {
+        "n_fixes": 640,
+        "median_dt_s": 1.0,
+        "max_gap_s": 1.13,
+        "n_gaps_over_threshold": 0,
+        "gap_ok": true
+      },
+      "included": true,
+      "reason": "ok",
+      "duration_s": 639.0,
+      "distance_km": 16.332,
+      "clipping": {
+        "clip_rate": 0.06719,
+        "n_clipped": 43,
+        "mean_clip_err_mps": 3.2938,
+        "max_clip_err_mps": 17.1394,
+        "distance_delta_pct": -0.8145
+      }
+    },
+    {
+      "trip": "20151120162105-17km-D2-NORMAL2-SECONDARY",
+      "driver": "D2",
+      "style": "NORMAL",
+      "road": "SECONDARY",
+      "label_distance": "17km",
+      "path": "/Users/dhananjaytiwari/Downloads/CODING/PROJECTS/SmartEV-Management-System/UAH-DRIVESET-v1/D2/20151120162105-17km-D2-NORMAL2-SECONDARY",
+      "gps": {
+        "n_fixes": 679,
+        "median_dt_s": 1.0,
+        "max_gap_s": 1.14,
+        "n_gaps_over_threshold": 0,
+        "gap_ok": true
+      },
+      "included": true,
+      "reason": "ok",
+      "duration_s": 678.0,
+      "distance_km": 16.606,
+      "clipping": {
+        "clip_rate": 0.05007,
+        "n_clipped": 34,
+        "mean_clip_err_mps": 3.9459,
+        "max_clip_err_mps": 15.3894,
+        "distance_delta_pct": -0.7614
+      }
+    },
+    {
+      "trip": "20151120163350-16km-D2-AGGRESSIVE-SECONDARY",
+      "driver": "D2",
+      "style": "AGGRESSIVE",
+      "road": "SECONDARY",
+      "label_distance": "16km",
+      "path": "/Users/dhananjaytiwari/Downloads/CODING/PROJECTS/SmartEV-Management-System/UAH-DRIVESET-v1/D2/20151120163350-16km-D2-AGGRESSIVE-SECONDARY",
+      "gps": {
+        "n_fixes": 606,
+        "median_dt_s": 1.0,
+        "max_gap_s": 1.18,
+        "n_gaps_over_threshold": 0,
+        "gap_ok": true
+      },
+      "included": true,
+      "reason": "ok",
+      "duration_s": 605.0,
+      "distance_km": 16.147,
+      "clipping": {
+        "clip_rate": 0.22937,
+        "n_clipped": 139,
+        "mean_clip_err_mps": 2.5986,
+        "max_clip_err_mps": 19.5005,
+        "distance_delta_pct": -2.176
+      }
+    },
+    {
+      "trip": "20151120164606-16km-D2-DROWSY-SECONDARY",
+      "driver": "D2",
+      "style": "DROWSY",
+      "road": "SECONDARY",
+      "label_distance": "16km",
+      "path": "/Users/dhananjaytiwari/Downloads/CODING/PROJECTS/SmartEV-Management-System/UAH-DRIVESET-v1/D2/20151120164606-16km-D2-DROWSY-SECONDARY",
+      "gps": {
+        "n_fixes": 635,
+        "median_dt_s": 1.0,
+        "max_gap_s": 1.16,
+        "n_gaps_over_threshold": 0,
+        "gap_ok": true
+      },
+      "included": true,
+      "reason": "ok",
+      "duration_s": 634.0,
+      "distance_km": 16.096,
+      "clipping": {
+        "clip_rate": 0.11181,
+        "n_clipped": 71,
+        "mean_clip_err_mps": 2.6673,
+        "max_clip_err_mps": 19.1394,
+        "distance_delta_pct": -1.1172
+      }
+    },
+    {
+      "trip": "20151126110502-26km-D3-NORMAL-MOTORWAY",
+      "driver": "D3",
+      "style": "NORMAL",
+      "road": "MOTORWAY",
+      "label_distance": "26km",
+      "path": "/Users/dhananjaytiwari/Downloads/CODING/PROJECTS/SmartEV-Management-System/UAH-DRIVESET-v1/D3/20151126110502-26km-D3-NORMAL-MOTORWAY",
+      "gps": {
+        "n_fixes": 906,
+        "median_dt_s": 1.0,
+        "max_gap_s": 10.09,
+        "n_gaps_over_threshold": 1,
+        "gap_ok": false
+      },
+      "included": false,
+      "reason": "GPS gap 10.09s > 10.0s",
+      "duration_s": 914.0,
+      "distance_km": 25.75,
+      "clipping": {
+        "clip_rate": 0.0918,
+        "n_clipped": 84,
+        "mean_clip_err_mps": 1.9219,
+        "max_clip_err_mps": 17.0005,
+        "distance_delta_pct": -0.5939
+      }
+    },
+    {
+      "trip": "20151126113754-26km-D3-DROWSY-MOTORWAY",
+      "driver": "D3",
+      "style": "DROWSY",
+      "road": "MOTORWAY",
+      "label_distance": "26km",
+      "path": "/Users/dhananjaytiwari/Downloads/CODING/PROJECTS/SmartEV-Management-System/UAH-DRIVESET-v1/D3/20151126113754-26km-D3-DROWSY-MOTORWAY",
+      "gps": {
+        "n_fixes": 1007,
+        "median_dt_s": 1.0,
+        "max_gap_s": 1.17,
+        "n_gaps_over_threshold": 0,
+        "gap_ok": true
+      },
+      "included": true,
+      "reason": "ok",
+      "duration_s": 1006.0,
+      "distance_km": 25.611,
+      "clipping": {
+        "clip_rate": 0.08044,
+        "n_clipped": 81,
+        "mean_clip_err_mps": 3.0134,
+        "max_clip_err_mps": 19.9728,
+        "distance_delta_pct": -0.9139
+      }
+    },
+    {
+      "trip": "20151126124208-16km-D3-NORMAL1-SECONDARY",
+      "driver": "D3",
+      "style": "NORMAL",
+      "road": "SECONDARY",
+      "label_distance": "16km",
+      "path": "/Users/dhananjaytiwari/Downloads/CODING/PROJECTS/SmartEV-Management-System/UAH-DRIVESET-v1/D3/20151126124208-16km-D3-NORMAL1-SECONDARY",
+      "gps": {
+        "n_fixes": 685,
+        "median_dt_s": 1.0,
+        "max_gap_s": 1.12,
+        "n_gaps_over_threshold": 0,
+        "gap_ok": true
+      },
+      "included": true,
+      "reason": "ok",
+      "duration_s": 684.0,
+      "distance_km": 16.254,
+      "clipping": {
+        "clip_rate": 0.05255,
+        "n_clipped": 36,
+        "mean_clip_err_mps": 5.9635,
+        "max_clip_err_mps": 20.4884,
+        "distance_delta_pct": -1.3214
+      }
+    },
+    {
+      "trip": "20151126125458-16km-D3-NORMAL2-SECONDARY",
+      "driver": "D3",
+      "style": "NORMAL",
+      "road": "SECONDARY",
+      "label_distance": "16km",
+      "path": "/Users/dhananjaytiwari/Downloads/CODING/PROJECTS/SmartEV-Management-System/UAH-DRIVESET-v1/D3/20151126125458-16km-D3-NORMAL2-SECONDARY",
+      "gps": {
+        "n_fixes": 662,
+        "median_dt_s": 1.0,
+        "max_gap_s": 1.12,
+        "n_gaps_over_threshold": 0,
+        "gap_ok": true
+      },
+      "included": true,
+      "reason": "ok",
+      "duration_s": 661.0,
+      "distance_km": 16.442,
+      "clipping": {
+        "clip_rate": 0.0574,
+        "n_clipped": 38,
+        "mean_clip_err_mps": 3.8368,
+        "max_clip_err_mps": 14.9172,
+        "distance_delta_pct": -0.8873
+      }
+    },
+    {
+      "trip": "20151126130707-16km-D3-AGGRESSIVE-SECONDARY",
+      "driver": "D3",
+      "style": "AGGRESSIVE",
+      "road": "SECONDARY",
+      "label_distance": "16km",
+      "path": "/Users/dhananjaytiwari/Downloads/CODING/PROJECTS/SmartEV-Management-System/UAH-DRIVESET-v1/D3/20151126130707-16km-D3-AGGRESSIVE-SECONDARY",
+      "gps": {
+        "n_fixes": 666,
+        "median_dt_s": 1.0,
+        "max_gap_s": 1.1,
+        "n_gaps_over_threshold": 0,
+        "gap_ok": true
+      },
+      "included": true,
+      "reason": "ok",
+      "duration_s": 665.0,
+      "distance_km": 16.166,
+      "clipping": {
+        "clip_rate": 0.10961,
+        "n_clipped": 73,
+        "mean_clip_err_mps": 5.0051,
+        "max_clip_err_mps": 22.2554,
+        "distance_delta_pct": -2.2612
+      }
+    },
+    {
+      "trip": "20151126132013-17km-D3-DROWSY-SECONDARY",
+      "driver": "D3",
+      "style": "DROWSY",
+      "road": "SECONDARY",
+      "label_distance": "17km",
+      "path": "/Users/dhananjaytiwari/Downloads/CODING/PROJECTS/SmartEV-Management-System/UAH-DRIVESET-v1/D3/20151126132013-17km-D3-DROWSY-SECONDARY",
+      "gps": {
+        "n_fixes": 650,
+        "median_dt_s": 1.0,
+        "max_gap_s": 1.1,
+        "n_gaps_over_threshold": 0,
+        "gap_ok": true
+      },
+      "included": true,
+      "reason": "ok",
+      "duration_s": 649.0,
+      "distance_km": 16.586,
+      "clipping": {
+        "clip_rate": 0.06769,
+        "n_clipped": 44,
+        "mean_clip_err_mps": 3.6019,
+        "max_clip_err_mps": 15.3911,
+        "distance_delta_pct": -0.9563
+      }
+    },
+    {
+      "trip": "20151126134736-26km-D3-AGGRESSIVE-MOTORWAY",
+      "driver": "D3",
+      "style": "AGGRESSIVE",
+      "road": "MOTORWAY",
+      "label_distance": "26km",
+      "path": "/Users/dhananjaytiwari/Downloads/CODING/PROJECTS/SmartEV-Management-System/UAH-DRIVESET-v1/D3/20151126134736-26km-D3-AGGRESSIVE-MOTORWAY",
+      "gps": {
+        "n_fixes": 830,
+        "median_dt_s": 1.0,
+        "max_gap_s": 1.14,
+        "n_gaps_over_threshold": 0,
+        "gap_ok": true
+      },
+      "included": true,
+      "reason": "ok",
+      "duration_s": 829.0,
+      "distance_km": 25.474,
+      "clipping": {
+        "clip_rate": 0.25783,
+        "n_clipped": 214,
+        "mean_clip_err_mps": 2.1246,
+        "max_clip_err_mps": 17.8484,
+        "distance_delta_pct": -1.7855
+      }
+    },
+    {
+      "trip": "20151203171800-16km-D4-NORMAL1-SECONDARY",
+      "driver": "D4",
+      "style": "NORMAL",
+      "road": "SECONDARY",
+      "label_distance": "16km",
+      "path": "/Users/dhananjaytiwari/Downloads/CODING/PROJECTS/SmartEV-Management-System/UAH-DRIVESET-v1/D4/20151203171800-16km-D4-NORMAL1-SECONDARY",
+      "gps": {
+        "n_fixes": 715,
+        "median_dt_s": 1.0,
+        "max_gap_s": 1.14,
+        "n_gaps_over_threshold": 0,
+        "gap_ok": true
+      },
+      "included": true,
+      "reason": "ok",
+      "duration_s": 714.0,
+      "distance_km": 16.327,
+      "clipping": {
+        "clip_rate": 0.06713,
+        "n_clipped": 48,
+        "mean_clip_err_mps": 3.2878,
+        "max_clip_err_mps": 18.3069,
+        "distance_delta_pct": -0.9669
+      }
+    },
+    {
+      "trip": "20151203173103-17km-D4-NORMAL2-SECONDARY",
+      "driver": "D4",
+      "style": "NORMAL",
+      "road": "SECONDARY",
+      "label_distance": "17km",
+      "path": "/Users/dhananjaytiwari/Downloads/CODING/PROJECTS/SmartEV-Management-System/UAH-DRIVESET-v1/D4/20151203173103-17km-D4-NORMAL2-SECONDARY",
+      "gps": {
+        "n_fixes": 680,
+        "median_dt_s": 1.0,
+        "max_gap_s": 1.21,
+        "n_gaps_over_threshold": 0,
+        "gap_ok": true
+      },
+      "included": true,
+      "reason": "ok",
+      "duration_s": 679.0,
+      "distance_km": 16.537,
+      "clipping": {
+        "clip_rate": 0.07353,
+        "n_clipped": 50,
+        "mean_clip_err_mps": 3.1931,
+        "max_clip_err_mps": 16.2228,
+        "distance_delta_pct": -0.9659
+      }
+    },
+    {
+      "trip": "20151203174324-16km-D4-AGGRESSIVE-SECONDARY",
+      "driver": "D4",
+      "style": "AGGRESSIVE",
+      "road": "SECONDARY",
+      "label_distance": "16km",
+      "path": "/Users/dhananjaytiwari/Downloads/CODING/PROJECTS/SmartEV-Management-System/UAH-DRIVESET-v1/D4/20151203174324-16km-D4-AGGRESSIVE-SECONDARY",
+      "gps": {
+        "n_fixes": 627,
+        "median_dt_s": 1.0,
+        "max_gap_s": 1.2,
+        "n_gaps_over_threshold": 0,
+        "gap_ok": true
+      },
+      "included": true,
+      "reason": "ok",
+      "duration_s": 627.0,
+      "distance_km": 15.62,
+      "clipping": {
+        "clip_rate": 0.08917,
+        "n_clipped": 56,
+        "mean_clip_err_mps": 3.3844,
+        "max_clip_err_mps": 18.8513,
+        "distance_delta_pct": -1.2138
+      }
+    },
+    {
+      "trip": "20151203175637-17km-D4-DROWSY-SECONDARY",
+      "driver": "D4",
+      "style": "DROWSY",
+      "road": "SECONDARY",
+      "label_distance": "17km",
+      "path": "/Users/dhananjaytiwari/Downloads/CODING/PROJECTS/SmartEV-Management-System/UAH-DRIVESET-v1/D4/20151203175637-17km-D4-DROWSY-SECONDARY",
+      "gps": {
+        "n_fixes": 682,
+        "median_dt_s": 1.0,
+        "max_gap_s": 1.16,
+        "n_gaps_over_threshold": 0,
+        "gap_ok": true
+      },
+      "included": true,
+      "reason": "ok",
+      "duration_s": 681.0,
+      "distance_km": 16.549,
+      "clipping": {
+        "clip_rate": 0.06158,
+        "n_clipped": 42,
+        "mean_clip_err_mps": 2.566,
+        "max_clip_err_mps": 13.4216,
+        "distance_delta_pct": -0.6517
+      }
+    },
+    {
+      "trip": "20151204152848-25km-D4-NORMAL-MOTORWAY",
+      "driver": "D4",
+      "style": "NORMAL",
+      "road": "MOTORWAY",
+      "label_distance": "25km",
+      "path": "/Users/dhananjaytiwari/Downloads/CODING/PROJECTS/SmartEV-Management-System/UAH-DRIVESET-v1/D4/20151204152848-25km-D4-NORMAL-MOTORWAY",
+      "gps": {
+        "n_fixes": 993,
+        "median_dt_s": 1.0,
+        "max_gap_s": 1.2,
+        "n_gaps_over_threshold": 0,
+        "gap_ok": true
+      },
+      "included": true,
+      "reason": "ok",
+      "duration_s": 992.0,
+      "distance_km": 25.269,
+      "clipping": {
+        "clip_rate": 0.07452,
+        "n_clipped": 74,
+        "mean_clip_err_mps": 2.2458,
+        "max_clip_err_mps": 19.3339,
+        "distance_delta_pct": -0.6194
+      }
+    },
+    {
+      "trip": "20151204154908-25km-D4-AGGRESSIVE-MOTORWAY",
+      "driver": "D4",
+      "style": "AGGRESSIVE",
+      "road": "MOTORWAY",
+      "label_distance": "25km",
+      "path": "/Users/dhananjaytiwari/Downloads/CODING/PROJECTS/SmartEV-Management-System/UAH-DRIVESET-v1/D4/20151204154908-25km-D4-AGGRESSIVE-MOTORWAY",
+      "gps": {
+        "n_fixes": 933,
+        "median_dt_s": 1.0,
+        "max_gap_s": 1.22,
+        "n_gaps_over_threshold": 0,
+        "gap_ok": true
+      },
+      "included": true,
+      "reason": "ok",
+      "duration_s": 933.0,
+      "distance_km": 25.415,
+      "clipping": {
+        "clip_rate": 0.20021,
+        "n_clipped": 187,
+        "mean_clip_err_mps": 1.6625,
+        "max_clip_err_mps": 22.9951,
+        "distance_delta_pct": -1.2237
+      }
+    },
+    {
+      "trip": "20151204160823-25km-D4-DROWSY-MOTORWAY",
+      "driver": "D4",
+      "style": "DROWSY",
+      "road": "MOTORWAY",
+      "label_distance": "25km",
+      "path": "/Users/dhananjaytiwari/Downloads/CODING/PROJECTS/SmartEV-Management-System/UAH-DRIVESET-v1/D4/20151204160823-25km-D4-DROWSY-MOTORWAY",
+      "gps": {
+        "n_fixes": 1025,
+        "median_dt_s": 1.0,
+        "max_gap_s": 1.2,
+        "n_gaps_over_threshold": 0,
+        "gap_ok": true
+      },
+      "included": true,
+      "reason": "ok",
+      "duration_s": 1025.0,
+      "distance_km": 25.131,
+      "clipping": {
+        "clip_rate": 0.05458,
+        "n_clipped": 56,
+        "mean_clip_err_mps": 2.8473,
+        "max_clip_err_mps": 19.8894,
+        "distance_delta_pct": -0.6346
+      }
+    },
+    {
+      "trip": "20151209151242-25km-D5-NORMAL-MOTORWAY",
+      "driver": "D5",
+      "style": "NORMAL",
+      "road": "MOTORWAY",
+      "label_distance": "25km",
+      "path": "/Users/dhananjaytiwari/Downloads/CODING/PROJECTS/SmartEV-Management-System/UAH-DRIVESET-v1/D5/20151209151242-25km-D5-NORMAL-MOTORWAY",
+      "gps": {
+        "n_fixes": 921,
+        "median_dt_s": 1.0,
+        "max_gap_s": 1.17,
+        "n_gaps_over_threshold": 0,
+        "gap_ok": true
+      },
+      "included": true,
+      "reason": "ok",
+      "duration_s": 920.0,
+      "distance_km": 25.414,
+      "clipping": {
+        "clip_rate": 0.10966,
+        "n_clipped": 101,
+        "mean_clip_err_mps": 0.5908,
+        "max_clip_err_mps": 6.6394,
+        "distance_delta_pct": -0.2348
+      }
+    },
+    {
+      "trip": "20151209153137-25km-D5-AGGRESSIVE-MOTORWAY",
+      "driver": "D5",
+      "style": "AGGRESSIVE",
+      "road": "MOTORWAY",
+      "label_distance": "25km",
+      "path": "/Users/dhananjaytiwari/Downloads/CODING/PROJECTS/SmartEV-Management-System/UAH-DRIVESET-v1/D5/20151209153137-25km-D5-AGGRESSIVE-MOTORWAY",
+      "gps": {
+        "n_fixes": 795,
+        "median_dt_s": 1.0,
+        "max_gap_s": 1.17,
+        "n_gaps_over_threshold": 0,
+        "gap_ok": true
+      },
+      "included": true,
+      "reason": "ok",
+      "duration_s": 794.0,
+      "distance_km": 25.269,
+      "clipping": {
+        "clip_rate": 0.26038,
+        "n_clipped": 207,
+        "mean_clip_err_mps": 1.1086,
+        "max_clip_err_mps": 16.2097,
+        "distance_delta_pct": -0.9084
+      }
+    },
+    {
+      "trip": "20151211160213-25km-D5-DROWSY-MOTORWAY",
+      "driver": "D5",
+      "style": "DROWSY",
+      "road": "MOTORWAY",
+      "label_distance": "25km",
+      "path": "/Users/dhananjaytiwari/Downloads/CODING/PROJECTS/SmartEV-Management-System/UAH-DRIVESET-v1/D5/20151211160213-25km-D5-DROWSY-MOTORWAY",
+      "gps": {
+        "n_fixes": 1091,
+        "median_dt_s": 1.0,
+        "max_gap_s": 1.16,
+        "n_gaps_over_threshold": 0,
+        "gap_ok": true
+      },
+      "included": true,
+      "reason": "ok",
+      "duration_s": 1091.0,
+      "distance_km": 25.226,
+      "clipping": {
+        "clip_rate": 0.03663,
+        "n_clipped": 40,
+        "mean_clip_err_mps": 4.7504,
+        "max_clip_err_mps": 19.3829,
+        "distance_delta_pct": -0.7535
+      }
+    },
+    {
+      "trip": "20151211162829-16km-D5-NORMAL1-SECONDARY",
+      "driver": "D5",
+      "style": "NORMAL",
+      "road": "SECONDARY",
+      "label_distance": "16km",
+      "path": "/Users/dhananjaytiwari/Downloads/CODING/PROJECTS/SmartEV-Management-System/UAH-DRIVESET-v1/D5/20151211162829-16km-D5-NORMAL1-SECONDARY",
+      "gps": {
+        "n_fixes": 686,
+        "median_dt_s": 1.0,
+        "max_gap_s": 1.12,
+        "n_gaps_over_threshold": 0,
+        "gap_ok": true
+      },
+      "included": true,
+      "reason": "ok",
+      "duration_s": 686.0,
+      "distance_km": 16.152,
+      "clipping": {
+        "clip_rate": 0.04221,
+        "n_clipped": 29,
+        "mean_clip_err_mps": 7.0681,
+        "max_clip_err_mps": 22.2228,
+        "distance_delta_pct": -1.1998
+      }
+    },
+    {
+      "trip": "20151211164124-17km-D5-NORMAL2-SECONDARY",
+      "driver": "D5",
+      "style": "NORMAL",
+      "road": "SECONDARY",
+      "label_distance": "17km",
+      "path": "/Users/dhananjaytiwari/Downloads/CODING/PROJECTS/SmartEV-Management-System/UAH-DRIVESET-v1/D5/20151211164124-17km-D5-NORMAL2-SECONDARY",
+      "gps": {
+        "n_fixes": 683,
+        "median_dt_s": 1.0,
+        "max_gap_s": 1.16,
+        "n_gaps_over_threshold": 0,
+        "gap_ok": true
+      },
+      "included": true,
+      "reason": "ok",
+      "duration_s": 682.0,
+      "distance_km": 16.558,
+      "clipping": {
+        "clip_rate": 0.04392,
+        "n_clipped": 30,
+        "mean_clip_err_mps": 5.5674,
+        "max_clip_err_mps": 18.1672,
+        "distance_delta_pct": -0.9534
+      }
+    },
+    {
+      "trip": "20151211165606-12km-D5-AGGRESSIVE-SECONDARY",
+      "driver": "D5",
+      "style": "AGGRESSIVE",
+      "road": "SECONDARY",
+      "label_distance": "12km",
+      "path": "/Users/dhananjaytiwari/Downloads/CODING/PROJECTS/SmartEV-Management-System/UAH-DRIVESET-v1/D5/20151211165606-12km-D5-AGGRESSIVE-SECONDARY",
+      "gps": {
+        "n_fixes": 427,
+        "median_dt_s": 1.0,
+        "max_gap_s": 1.17,
+        "n_gaps_over_threshold": 0,
+        "gap_ok": true
+      },
+      "included": false,
+      "reason": "powertrain limit exceeded (transmission `pwr_out_req`: -262 kW)",
+      "duration_s": 426.0,
+      "distance_km": 11.895,
+      "clipping": {
+        "clip_rate": 0.21546,
+        "n_clipped": 92,
+        "mean_clip_err_mps": 6.3185,
+        "max_clip_err_mps": 31.445,
+        "distance_delta_pct": -4.7504
+      }
+    },
+    {
+      "trip": "20151211170502-16km-D5-DROWSY-SECONDARY",
+      "driver": "D5",
+      "style": "DROWSY",
+      "road": "SECONDARY",
+      "label_distance": "16km",
+      "path": "/Users/dhananjaytiwari/Downloads/CODING/PROJECTS/SmartEV-Management-System/UAH-DRIVESET-v1/D5/20151211170502-16km-D5-DROWSY-SECONDARY",
+      "gps": {
+        "n_fixes": 696,
+        "median_dt_s": 1.0,
+        "max_gap_s": 1.18,
+        "n_gaps_over_threshold": 0,
+        "gap_ok": true
+      },
+      "included": true,
+      "reason": "ok",
+      "duration_s": 695.0,
+      "distance_km": 16.28,
+      "clipping": {
+        "clip_rate": 0.04741,
+        "n_clipped": 33,
+        "mean_clip_err_mps": 3.859,
+        "max_clip_err_mps": 13.5283,
+        "distance_delta_pct": -0.7409
+      }
+    },
+    {
+      "trip": "20151217162714-26km-D6-NORMAL-MOTORWAY",
+      "driver": "D6",
+      "style": "NORMAL",
+      "road": "MOTORWAY",
+      "label_distance": "26km",
+      "path": "/Users/dhananjaytiwari/Downloads/CODING/PROJECTS/SmartEV-Management-System/UAH-DRIVESET-v1/D6/20151217162714-26km-D6-NORMAL-MOTORWAY",
+      "gps": {
+        "n_fixes": 1022,
+        "median_dt_s": 1.0,
+        "max_gap_s": 2.07,
+        "n_gaps_over_threshold": 0,
+        "gap_ok": true
+      },
+      "included": true,
+      "reason": "ok",
+      "duration_s": 1022.0,
+      "distance_km": 25.515,
+      "clipping": {
+        "clip_rate": 0.02933,
+        "n_clipped": 30,
+        "mean_clip_err_mps": 5.3352,
+        "max_clip_err_mps": 14.6392,
+        "distance_delta_pct": -0.6274
+      }
+    },
+    {
+      "trip": "20151217164730-25km-D6-DROWSY-MOTORWAY",
+      "driver": "D6",
+      "style": "DROWSY",
+      "road": "MOTORWAY",
+      "label_distance": "25km",
+      "path": "/Users/dhananjaytiwari/Downloads/CODING/PROJECTS/SmartEV-Management-System/UAH-DRIVESET-v1/D6/20151217164730-25km-D6-DROWSY-MOTORWAY",
+      "gps": {
+        "n_fixes": 1070,
+        "median_dt_s": 1.0,
+        "max_gap_s": 1.18,
+        "n_gaps_over_threshold": 0,
+        "gap_ok": true
+      },
+      "included": true,
+      "reason": "ok",
+      "duration_s": 1070.0,
+      "distance_km": 25.049,
+      "clipping": {
+        "clip_rate": 0.03548,
+        "n_clipped": 38,
+        "mean_clip_err_mps": 4.5368,
+        "max_clip_err_mps": 18.7079,
+        "distance_delta_pct": -0.6885
+      }
+    },
+    {
+      "trip": "20151221112434-17km-D6-NORMAL-SECONDARY",
+      "driver": "D6",
+      "style": "NORMAL",
+      "road": "SECONDARY",
+      "label_distance": "17km",
+      "path": "/Users/dhananjaytiwari/Downloads/CODING/PROJECTS/SmartEV-Management-System/UAH-DRIVESET-v1/D6/20151221112434-17km-D6-NORMAL-SECONDARY",
+      "gps": {
+        "n_fixes": 785,
+        "median_dt_s": 1.0,
+        "max_gap_s": 1.1,
+        "n_gaps_over_threshold": 0,
+        "gap_ok": true
+      },
+      "included": true,
+      "reason": "ok",
+      "duration_s": 784.0,
+      "distance_km": 16.472,
+      "clipping": {
+        "clip_rate": 0.01911,
+        "n_clipped": 15,
+        "mean_clip_err_mps": 5.4136,
+        "max_clip_err_mps": 15.0561,
+        "distance_delta_pct": -0.4472
+      }
+    },
+    {
+      "trip": "20151221113846-16km-D6-DROWSY-SECONDARY",
+      "driver": "D6",
+      "style": "DROWSY",
+      "road": "SECONDARY",
+      "label_distance": "16km",
+      "path": "/Users/dhananjaytiwari/Downloads/CODING/PROJECTS/SmartEV-Management-System/UAH-DRIVESET-v1/D6/20151221113846-16km-D6-DROWSY-SECONDARY",
+      "gps": {
+        "n_fixes": 728,
+        "median_dt_s": 1.0,
+        "max_gap_s": 1.15,
+        "n_gaps_over_threshold": 0,
+        "gap_ok": true
+      },
+      "included": true,
+      "reason": "ok",
+      "duration_s": 728.0,
+      "distance_km": 16.217,
+      "clipping": {
+        "clip_rate": 0.02743,
+        "n_clipped": 20,
+        "mean_clip_err_mps": 4.1132,
+        "max_clip_err_mps": 14.445,
+        "distance_delta_pct": -0.4628
+      }
+    },
+    {
+      "trip": "20151221120051-26km-D6-AGGRESSIVE-MOTORWAY",
+      "driver": "D6",
+      "style": "AGGRESSIVE",
+      "road": "MOTORWAY",
+      "label_distance": "26km",
+      "path": "/Users/dhananjaytiwari/Downloads/CODING/PROJECTS/SmartEV-Management-System/UAH-DRIVESET-v1/D6/20151221120051-26km-D6-AGGRESSIVE-MOTORWAY",
+      "gps": {
+        "n_fixes": 915,
+        "median_dt_s": 1.0,
+        "max_gap_s": 1.17,
+        "n_gaps_over_threshold": 0,
+        "gap_ok": true
+      },
+      "included": true,
+      "reason": "ok",
+      "duration_s": 914.0,
+      "distance_km": 25.7,
+      "clipping": {
+        "clip_rate": 0.13661,
+        "n_clipped": 125,
+        "mean_clip_err_mps": 1.4721,
+        "max_clip_err_mps": 13.5839,
+        "distance_delta_pct": -0.6895
+      }
+    }
+  ]
+}

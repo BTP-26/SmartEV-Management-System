@@ -1,0 +1,7 @@
+style,road,n_trips,n_drivers,wh_per_km_baseline_mean,wh_per_km_baseline_std,wh_per_km_anticipatory_mean,wh_per_km_anticipatory_std,saved_pct_mean,saved_pct_std,regen_wh_mean,regen_wh_std,clip_rate_pct_mean,clip_rate_pct_std,oracle_upper_bound,simulation
+NORMAL,MOTORWAY,5,5,136.0,10.25,135.51,10.24,0.36,0.26,737.96,197.81,8.9,4.78,True,True
+NORMAL,SECONDARY,11,6,122.4,9.95,121.95,9.82,0.36,0.38,400.21,102.86,5.71,1.9,True,True
+AGGRESSIVE,MOTORWAY,6,6,163.38,10.75,158.97,12.67,2.77,1.58,1253.99,307.92,23.21,6.4,True,True
+AGGRESSIVE,SECONDARY,4,4,139.12,14.34,136.14,13.54,2.09,1.82,672.41,187.51,13.86,6.24,True,True
+DROWSY,MOTORWAY,5,5,124.0,8.26,123.23,8.02,0.61,0.5,655.48,76.03,5.83,2.32,True,True
+DROWSY,SECONDARY,6,6,131.95,9.23,131.22,9.05,0.54,0.37,396.6,121.23,6.3,2.8,True,True
