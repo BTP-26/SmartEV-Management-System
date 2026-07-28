@@ -101,3 +101,5 @@ Real-world electric vehicle data driving and charging/
 UAH-DRIVESET-v1/
 
 analysis/
+# FASTSim generated drive cycles (regenerable)
+experiments/fastsim/cycles/

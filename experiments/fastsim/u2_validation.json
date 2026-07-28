@@ -1,0 +1,53 @@
+{
+  "note": "SIMULATION inputs; UAH GPS -> uniform 1 Hz FASTSim cycles",
+  "cycles": {
+    "NORMAL": {
+      "n_points": 624,
+      "uniform_1hz": true,
+      "monotonic_time": true,
+      "nonneg_speed": true,
+      "speed_plausible": true,
+      "max_speed_mps": 32.44,
+      "duration_s": 623.0,
+      "distance_km": 16.662,
+      "valid": true,
+      "trip": "20151110175712-16km-D1-NORMAL1-SECONDARY",
+      "sim": {
+        "ran": false,
+        "error": "[fastsim-core/src/simdrive.rs:382]\ntime step: TrackedState(1, Fresh)\n\nCaused by:\n    0: [fastsim-core/src/simdrive.rs:478]\n    1: [fastsim-core/src/simdrive.rs:691]\n       Failed to meet speed trace.\n       prescribed speed: 40.06714424126737 mph\n       prev speed_ach: 0 mph\n       pwr_tractive_for_cyc: 338.3407602541593 kW\n       pwr_tractive: 338.3407602541593 kW\n       pwr_prop_fwd_max: 44.717226653161624 kW,\n       pwr deficit: 294 kW\n       "
+      }
+    },
+    "AGGRESSIVE": {
+      "n_points": 737,
+      "uniform_1hz": true,
+      "monotonic_time": true,
+      "nonneg_speed": true,
+      "speed_plausible": true,
+      "max_speed_mps": 41.33,
+      "duration_s": 736.0,
+      "distance_km": 24.57,
+      "valid": true,
+      "trip": "20151111125233-24km-D1-AGGRESSIVE-MOTORWAY",
+      "sim": {
+        "ran": false,
+        "error": "[fastsim-core/src/simdrive.rs:382]\ntime step: TrackedState(1, Fresh)\n\nCaused by:\n    0: [fastsim-core/src/simdrive.rs:478]\n    1: [fastsim-core/src/simdrive.rs:691]\n       Failed to meet speed trace.\n       prescribed speed: 60.69506909835242 mph\n       prev speed_ach: 0 mph\n       pwr_tractive_for_cyc: 775.6598407841462 kW\n       pwr_tractive: 775.6598407841462 kW\n       pwr_prop_fwd_max: 44.717226653161624 kW,\n       pwr deficit: 731 kW\n       "
+      }
+    },
+    "DROWSY": {
+      "n_points": 939,
+      "uniform_1hz": true,
+      "monotonic_time": true,
+      "nonneg_speed": true,
+      "speed_plausible": true,
+      "max_speed_mps": 31.42,
+      "duration_s": 938.0,
+      "distance_km": 25.331,
+      "valid": true,
+      "trip": "20151111132348-25km-D1-DROWSY-MOTORWAY",
+      "sim": {
+        "ran": false,
+        "error": "[fastsim-core/src/simdrive.rs:382]\ntime step: TrackedState(1, Fresh)\n\nCaused by:\n    0: [fastsim-core/src/simdrive.rs:478]\n    1: [fastsim-core/src/simdrive.rs:691]\n       Failed to meet speed trace.\n       prescribed speed: 44.42804024496938 mph\n       prev speed_ach: 0 mph\n       pwr_tractive_for_cyc: 415.87383228399545 kW\n       pwr_tractive: 415.87383228399545 kW\n       pwr_prop_fwd_max: 44.717226653161624 kW,\n       pwr deficit: 371 kW\n       "
+      }
+    }
+  }
+}
