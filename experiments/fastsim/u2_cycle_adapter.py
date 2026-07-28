@@ -86,31 +86,54 @@ def validate_arrays(time_s, speed_mps):
 
 
 # --------------------------- FASTSim cycle build (needs fastsim) ---------------------------
+LAUNCH_ACCEL_MPS2 = 0.5    # gentle, powertrain-feasible ramp from rest at trip start
+
+
+def ensure_feasible_start(time_s, speed_mps, max_accel=LAUNCH_ACCEL_MPS2):
+    """FASTSim launches the vehicle from rest. UAH GPS trips often start already
+    moving, so the first 1 Hz step would demand impossible tractive power. Prepend
+    a gentle 0 -> first-speed ramp (uniform 1 Hz) so the trace is followable.
+    Returns (time, speed); a no-op if the trip already starts near rest."""
+    v = np.asarray(speed_mps, float)
+    v0 = float(v[0])
+    if v0 <= 0.5:
+        return np.asarray(time_s, float), v
+    n_ramp = int(np.ceil(v0 / max_accel))
+    ramp = np.linspace(0.0, v0, n_ramp + 1)[:-1]     # 0..v0, excludes v0 (first real sample)
+    v_new = np.concatenate([ramp, v])
+    return np.arange(len(v_new), dtype=float), v_new  # re-grid to uniform 1 Hz from 0
+
+
+def cycle_from_arrays(time_s, speed_mps, grade=0.0):
+    """(time, speed) arrays -> (fastsim.Cycle, pydict). Reused by U-3 for modified
+    speed traces. Resizes every per-timestep field to our length (FASTSim needs
+    grade/elev/pwr_* all equal length); flat road (grade=0)."""
+    import fastsim as fsim
+    time_s, speed_mps = ensure_feasible_start(time_s, speed_mps)
+    d = fsim.Cycle.from_resource("udds.csv").to_pydict()   # schema-correct template
+    n = len(time_s)
+    tmpl_len = len(d["time_seconds"])
+    dist = np.cumsum(speed_mps * np.diff(time_s, prepend=time_s[0]))
+    for k, val in list(d.items()):
+        if isinstance(val, list) and len(val) == tmpl_len:
+            d[k] = [(val[0] if val else 0.0)] * n
+    d["time_seconds"] = [float(x) for x in time_s]
+    d["speed_meters_per_second"] = [float(x) for x in speed_mps]
+    d["dist_meters"] = [float(x) for x in dist]
+    d["grade"] = [float(grade)] * n
+    d["elev_meters"] = [0.0] * n
+    if "temp_amb_air_kelvin" in d:
+        d["temp_amb_air_kelvin"] = [float(TEMP_AMB_K)] * n
+    return fsim.Cycle.from_pydict(d), d
+
+
 def build_cycle(trip_path, grade=0.0):
     """UAH trip -> (fastsim.Cycle, pydict). Returns None if the trip is unusable."""
-    import fastsim as fsim
     arr = cycle_arrays(trip_path)
     if arr is None:
         return None
     t, v = arr
-    d = fsim.Cycle.from_resource("udds.csv").to_pydict()   # schema-correct template
-    n = len(t)
-    tmpl_len = len(d["time_seconds"])
-    dist = np.cumsum(v * np.diff(t, prepend=t[0]))
-    # resize EVERY per-timestep array (len == template length) to our n, so all
-    # of grade/elev/pwr_* stay the same length (FASTSim requires it); repeat the
-    # template's first value for fields we don't compute ourselves.
-    for k, val in list(d.items()):
-        if isinstance(val, list) and len(val) == tmpl_len:
-            d[k] = [(val[0] if val else 0.0)] * n
-    d["time_seconds"] = [float(x) for x in t]
-    d["speed_meters_per_second"] = [float(x) for x in v]
-    d["dist_meters"] = [float(x) for x in dist]
-    d["grade"] = [float(grade)] * n
-    d["elev_meters"] = [0.0] * n                     # flat road (grade = 0)
-    if "temp_amb_air_kelvin" in d:
-        d["temp_amb_air_kelvin"] = [float(TEMP_AMB_K)] * n
-    return fsim.Cycle.from_pydict(d), d
+    return cycle_from_arrays(t, v, grade)
 
 
 def _sim_check(cyc):

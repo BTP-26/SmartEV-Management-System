@@ -1,0 +1,19 @@
+{
+  "note": "SIMULATION - braking->regen coupling ablation (U-3)",
+  "cycle": "normal",
+  "regen_energy_wh": {
+    "baseline": 416.29,
+    "anticipatory": 371.34,
+    "gain_wh": -44.95,
+    "gain_pct": -10.8
+  },
+  "soc_end": {
+    "baseline": 0.95688,
+    "anticipatory": 0.95704
+  },
+  "energy_used_kwh": {
+    "baseline": 2.354,
+    "anticipatory": 2.337
+  },
+  "any_nan": false
+}

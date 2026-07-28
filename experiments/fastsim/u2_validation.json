@@ -2,35 +2,41 @@
   "note": "SIMULATION inputs; UAH GPS -> uniform 1 Hz FASTSim cycles",
   "cycles": {
     "NORMAL": {
-      "n_points": 624,
+      "n_points": 661,
       "uniform_1hz": true,
       "monotonic_time": true,
       "nonneg_speed": true,
       "speed_plausible": true,
       "max_speed_mps": 32.44,
-      "duration_s": 623.0,
-      "distance_km": 16.662,
+      "duration_s": 660.0,
+      "distance_km": 17.006,
       "valid": true,
       "trip": "20151110175712-16km-D1-NORMAL1-SECONDARY",
       "sim": {
-        "ran": false,
-        "error": "[fastsim-core/src/simdrive.rs:382]\ntime step: TrackedState(1, Fresh)\n\nCaused by:\n    0: [fastsim-core/src/simdrive.rs:478]\n    1: [fastsim-core/src/simdrive.rs:691]\n       Failed to meet speed trace.\n       prescribed speed: 40.06714424126737 mph\n       prev speed_ach: 0 mph\n       pwr_tractive_for_cyc: 338.3407602541593 kW\n       pwr_tractive: 338.3407602541593 kW\n       pwr_prop_fwd_max: 44.717226653161624 kW,\n       pwr deficit: 294 kW\n       "
+        "ran": true,
+        "any_nan": false,
+        "soc_start": 0.98,
+        "soc_end": 0.9569,
+        "soc_drop_pct": 2.312
       }
     },
     "AGGRESSIVE": {
-      "n_points": 737,
+      "n_points": 790,
       "uniform_1hz": true,
       "monotonic_time": true,
       "nonneg_speed": true,
       "speed_plausible": true,
       "max_speed_mps": 41.33,
-      "duration_s": 736.0,
-      "distance_km": 24.57,
+      "duration_s": 789.0,
+      "distance_km": 25.285,
       "valid": true,
       "trip": "20151111125233-24km-D1-AGGRESSIVE-MOTORWAY",
       "sim": {
-        "ran": false,
-        "error": "[fastsim-core/src/simdrive.rs:382]\ntime step: TrackedState(1, Fresh)\n\nCaused by:\n    0: [fastsim-core/src/simdrive.rs:478]\n    1: [fastsim-core/src/simdrive.rs:691]\n       Failed to meet speed trace.\n       prescribed speed: 60.69506909835242 mph\n       prev speed_ach: 0 mph\n       pwr_tractive_for_cyc: 775.6598407841462 kW\n       pwr_tractive: 775.6598407841462 kW\n       pwr_prop_fwd_max: 44.717226653161624 kW,\n       pwr deficit: 731 kW\n       "
+        "ran": true,
+        "any_nan": false,
+        "soc_start": 0.98,
+        "soc_end": 0.9354,
+        "soc_drop_pct": 4.462
       }
     },
     "DROWSY": {
