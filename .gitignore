@@ -3,6 +3,7 @@
 venv/
 ENV/
 env/
+.venv-fastsim/
 
 # Python cache
 __pycache__/
@@ -101,3 +102,5 @@ Real-world electric vehicle data driving and charging/
 UAH-DRIVESET-v1/
 
 analysis/
+# FASTSim generated drive cycles (regenerable)
+experiments/fastsim/cycles/

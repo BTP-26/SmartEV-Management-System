@@ -1,0 +1,62 @@
+{
+  "note": "SIMULATION inputs; UAH GPS -> uniform 1 Hz FASTSim cycles",
+  "cycles": {
+    "NORMAL": {
+      "n_points": 624,
+      "uniform_1hz": true,
+      "monotonic_time": true,
+      "nonneg_speed": true,
+      "speed_plausible": true,
+      "max_speed_mps": 31.89,
+      "duration_s": 623.0,
+      "distance_km": 16.561,
+      "valid": true,
+      "trip": "20151110175712-16km-D1-NORMAL1-SECONDARY",
+      "sim": {
+        "ran": true,
+        "any_nan": false,
+        "soc_start": 0.98,
+        "soc_end": 0.9574,
+        "soc_drop_pct": 2.259
+      }
+    },
+    "AGGRESSIVE": {
+      "n_points": 737,
+      "uniform_1hz": true,
+      "monotonic_time": true,
+      "nonneg_speed": true,
+      "speed_plausible": true,
+      "max_speed_mps": 41.11,
+      "duration_s": 736.0,
+      "distance_km": 23.982,
+      "valid": true,
+      "trip": "20151111125233-24km-D1-AGGRESSIVE-MOTORWAY",
+      "sim": {
+        "ran": true,
+        "any_nan": false,
+        "soc_start": 0.98,
+        "soc_end": 0.9378,
+        "soc_drop_pct": 4.223
+      }
+    },
+    "DROWSY": {
+      "n_points": 939,
+      "uniform_1hz": true,
+      "monotonic_time": true,
+      "nonneg_speed": true,
+      "speed_plausible": true,
+      "max_speed_mps": 31.42,
+      "duration_s": 938.0,
+      "distance_km": 25.101,
+      "valid": true,
+      "trip": "20151111132348-25km-D1-DROWSY-MOTORWAY",
+      "sim": {
+        "ran": true,
+        "any_nan": false,
+        "soc_start": 0.98,
+        "soc_end": 0.9462,
+        "soc_drop_pct": 3.383
+      }
+    }
+  }
+}
