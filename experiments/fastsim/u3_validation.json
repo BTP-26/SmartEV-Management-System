@@ -13,8 +13,8 @@
         "anticipatory": 16.564
       },
       "regen_energy_wh": {
-        "baseline": 375.09,
-        "anticipatory": 336.92
+        "baseline": 375.12,
+        "anticipatory": 336.95
       },
       "soc_end": {
         "baseline": 0.95741,
@@ -36,11 +36,11 @@
       },
       "regen_energy_wh": {
         "baseline": 808.97,
-        "anticipatory": 661.06
+        "anticipatory": 661.08
       },
       "soc_end": {
         "baseline": 0.93777,
-        "anticipatory": 0.93856
+        "anticipatory": 0.93855
       },
       "intervened": true,
       "any_nan": false
@@ -57,7 +57,7 @@
         "anticipatory": 25.067
       },
       "regen_energy_wh": {
-        "baseline": 634.42,
+        "baseline": 634.43,
         "anticipatory": 537.31
       },
       "soc_end": {

@@ -81,8 +81,16 @@ def _decel_segments(v, min_drop=1.0):
     return segs
 
 
-BRAKE_TRIGGER_W = u2.U1_MAX_PROP_W    # only anticipate meaningful brakes (peak power above this)
-COAST_MASS_KG = u2.U1_MASS_KG
+# C-2: braking-event significance threshold - the peak MECHANICAL braking power
+# above which a deceleration is worth anticipating (coasting into). This is a
+# property of *braking salience*, NOT of the powertrain, so it is deliberately
+# independent of the vehicle's propulsion limit (the two were previously aliased,
+# which conflated two unrelated physical quantities). ~45 kW corresponds to
+# moderate braking - order of ~1.5 m/s^2 at ~15 m/s for this ~2070 kg vehicle
+# (P = m * a * v). Tuning: LOWER it to also anticipate gentler brakes, RAISE it to
+# anticipate only hard stops. It is a control-design choice, not read from U-1.
+BRAKE_TRIGGER_W = 45000.0
+COAST_MASS_KG = u2.U1_MASS_KG         # vehicle mass, to convert decel * speed -> braking power
 
 
 def apply_anticipatory(speed_mps, intent, lead_s=4, trigger_w=BRAKE_TRIGGER_W, mass_kg=COAST_MASS_KG):
