@@ -17,13 +17,19 @@ from typing import Dict, Any
 @dataclass(frozen=True)
 class SimConfig:
     # --- speed-trace conditioning (U-2 `condition_speed`) ---
-    # Fraction of the U-1 vehicle's peak forward propulsion power usable when capping
-    # acceleration. Peak power is only available near base speed; at the low speeds the
-    # conditioner targets, the motor is torque-limited. NOTE (review C-1): the budget is applied
-    # speed-INDEPENDENTLY, so high-speed accelerations are capped more than the vehicle truly
-    # requires. Measured impact is small on reference cycles (UDDS 0.7% of steps, HWFET 0.1%),
-    # but MUST be re-measured per driving style on UAH — see `clipping_stats()`.
-    accel_power_fraction: float = 0.131
+    # Each step is capped by TWO limits, whichever binds (review C-1 escalation, resolved):
+    # (1) a SPEED-DEPENDENT propulsion-power budget, `prop_budget` * P_avail(v), where P_avail(v)
+    #     is probed directly from FASTSim's own `pwr_prop_fwd_max_watts` (torque-limited at low
+    #     speed, ~45 kW; power-limited near/above base speed, ~234 kW) — not a re-derived curve
+    #     and not a constant, so high-speed accelerations are no longer capped more than the
+    #     vehicle truly requires. This replaced a speed-INDEPENDENT constant budget that clipped
+    #     ~23% of AGGRESSIVE-motorway steps vs ~9% of NORMAL, biasing the per-style table; the
+    #     bias is gone with this model (re-verified per style/road — see `clipping_stats()`).
+    # (2) a flat acceleration cap (`accel_cap_mps2`), which only binds during the low-speed launch
+    #     ramp where the power limit alone would demand an infeasible ramp FASTSim's quasi-static
+    #     solver cannot follow from a cold start.
+    prop_budget: float = 0.7
+    accel_cap_mps2: float = 3.0
 
     # --- anticipatory-regen control (U-3) ---
     # Peak MECHANICAL braking power above which a deceleration is worth anticipating.
@@ -61,9 +67,10 @@ class SimConfig:
 
 DEFAULT = SimConfig()
 
-# Sensitivity sweep grid (U-4 step 7): does the per-style conclusion survive these choices?
+# Sensitivity sweep grid (U-4 step 7, follow-up): does the per-style conclusion survive these choices?
 SENSITIVITY_GRID = {
-    "accel_power_fraction": [0.131, 0.188, 0.30],   # 0.188 == the "~45 kW" reading; 0.30 == looser
+    "prop_budget": [0.5, 0.7, 0.9],
+    "accel_cap_mps2": [2.0, 3.0, 4.0],
     "brake_trigger_w": [25_000.0, 45_000.0, 80_000.0],
     "lead_s": [2, 4, 6],
 }

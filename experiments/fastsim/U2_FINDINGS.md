@@ -131,6 +131,8 @@ Regenerated from scratch (old `cycles/` deleted first), then re-run through the 
 **Regenerated:** `u2_validation.json`, `cycles/` (git-ignored). **Not modified:** U-0, U-1 vehicle,
 braking/SoC models, U-4 analysis code (`u4_style_analysis.py`, `sim_config.py`).
 
-> **Note for the U-4 rerun:** `sim_config.accel_power_fraction` is now an obsolete mirror of the
-> removed constant. It is intentionally left untouched (U-4 is out of scope here) and should be
-> updated when U-4 results are regenerated post-merge.
+> **Note for the U-4 rerun — done:** `sim_config.accel_power_fraction` was updated to
+> `prop_budget`/`accel_cap_mps2` (mirroring this fix's real tunables) and the full 40-trip U-4
+> sweep was regenerated against this fix. Result: the clipping gate now **passes** (AGGRESSIVE
+> motorway clip 23.21%→0.96%, excess +14.31pp→+0.26pp). See `U4_FINDINGS.md` for the complete
+> old-vs-new comparison.
