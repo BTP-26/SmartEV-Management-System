@@ -11,9 +11,11 @@ What it adds on top of U-2/U-3 (review items it closes):
   * R-2     - GPS gap detection: long dropouts are linearly interpolated by the adapter, which
               fabricates plausible-looking speed, so affected trips are flagged and excluded.
   * C-1     - a clipping diagnostic quantifying how much `condition_speed` alters each trace,
-              reported PER STYLE. This is the gate: if AGGRESSIVE is clipped materially more than
-              NORMAL, the speed-independent power budget is biasing the style contrast and must be
-              made speed-dependent before the table is reportable.
+              reported PER STYLE. Originally found a speed-independent power budget biasing the
+              style contrast (AGGRESSIVE clipped far more than NORMAL); U-2 fixed this with a
+              speed-dependent propulsion limit probed from FASTSim itself. The gate stays in
+              place as a standing monitor - it re-verifies per run that AGGRESSIVE is not clipped
+              materially more than NORMAL, rather than assuming the fix holds forever.
   * R-1     - every result row carries `oracle_upper_bound=True`: intent is an oracle and the
               controller keeps the anticipatory run only when it helps, so savings are an UPPER
               BOUND, not a deployable result.
@@ -150,7 +152,8 @@ def _row(meta, ablation, clip, cfg=CFG):
         # honesty flags (R-1) - must survive into the paper
         "oracle_upper_bound": cfg.oracle_upper_bound,
         "simulation": cfg.simulation,
-        "accel_power_fraction": cfg.accel_power_fraction,
+        "prop_budget": cfg.prop_budget,
+        "accel_cap_mps2": cfg.accel_cap_mps2,
         "brake_trigger_w": cfg.brake_trigger_w,
     })
     row.update(clip)
@@ -353,7 +356,8 @@ def main():
     args = ap.parse_args()
 
     print(f"U-4 per-style energy analysis (SIMULATION) | config: "
-          f"accel_frac={CFG.accel_power_fraction} trigger={CFG.brake_trigger_w:.0f}W lead={CFG.lead_s}s")
+          f"prop_budget={CFG.prop_budget} accel_cap={CFG.accel_cap_mps2}m/s^2 "
+          f"trigger={CFG.brake_trigger_w:.0f}W lead={CFG.lead_s}s")
     vehicle, veh_meta = build_mendeley_bev()
     print(f"  vehicle: {veh_meta['modified']['battery_capacity_kwh']['new']} kWh, "
           f"max fwd propulsion {max_fwd_propulsion_power_w()/1000:.0f} kW")
