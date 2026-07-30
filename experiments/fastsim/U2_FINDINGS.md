@@ -1,8 +1,13 @@
 # U-2 — UAH GPS → FASTSim Drive-Cycle Adapter: Findings
 
-**Date:** 2026-07-28 · **Scope:** U-2 only (cycle adapter + the C-1 fix that touches it; no U-1
-vehicle, no braking/SoC model, no U-4, no paper). **Verdict: ready → U-4 can consume the cycles.**
-All outputs are **simulation** inputs.
+**Date:** 2026-07-28 (rev. speed-dependent conditioning) · **Scope:** U-2 only (cycle adapter +
+conditioning model; no U-1 vehicle, no braking/SoC model, no U-4, no paper). **Verdict: ready → U-4
+can consume the cycles.** All outputs are **simulation** inputs.
+
+> **Revision note (U-4 escalation of review item C-1):** `condition_speed` now uses a
+> **speed-dependent** propulsion limit read from FASTSim's own `pwr_prop_fwd_max_watts`, replacing the
+> constant-budget approach that clipped ~23% of AGGRESSIVE-motorway acceleration steps vs ~9% of
+> NORMAL and biased the per-style energy table. See §2A.
 
 ---
 
@@ -18,7 +23,41 @@ All outputs are **simulation** inputs.
 - `main()` builds one representative cycle per behaviour tag (Normal / Aggressive / Drowsy), writes
   the regenerable cycles to `cycles/` (git-ignored) and a validation report to `u2_validation.json`.
 
-## 2. What changed in this pass (review fix **C-1**)
+## 2A. Speed-dependent conditioning (U-4 escalation of C-1)
+
+- **Problem found in U-4.** The conditioner used a **speed-independent** power budget
+  (`0.131 × 239 kW = 31.3 kW`). That is right at launch (motor torque-limited) but wrong at
+  20–30 m/s, where the vehicle can really deliver ~234 kW. It therefore flattened exactly the strong
+  accelerations that define aggressive driving: **~23% of AGGRESSIVE-motorway steps clipped vs ~9%
+  of NORMAL (+14 pp)** — a style-correlated bias that understated AGGRESSIVE Wh/km.
+- **New model.** Each 1 Hz step is capped by **two** limits, keeping the smaller next speed:
+  1. **Propulsion power**, taken from **FASTSim's own capability**: a one-time probe runs the U-1
+     vehicle up a gentle full-range speed ramp and records `pwr_prop_fwd_max_watts` vs achieved speed
+     → `P_avail(v)` (cached). The step satisfies `m·(v−prev)·v ≤ PROP_BUDGET · P_avail(prev)`
+     (`PROP_BUDGET = 0.7`), evaluated at **`prev`, the start-of-step speed** — mirroring FASTSim, whose
+     `pwr_prop_fwd_max` is a function of the current speed (from rest only ~45 kW is available). This
+     governs high speed.
+  2. **Acceleration**, `v ≤ prev + A_MAX (3.0 m/s² ≈ 0.3 g)`. The power limit alone permits a very
+     steep launch ramp (~3.9 m/s²) that FASTSim's quasi-static solver cannot follow from a cold start
+     (it stalls → "failed to meet speed trace"); the cap keeps the launch ramp followable and is a
+     realistic maximum sustained acceleration. This governs the launch/low-speed ramp.
+  (The degenerate `P=0` point at `v=0` is dropped from the probed curve so the launch budget clamps to
+  the real ~45 kW launch capability instead of 0.)
+- **Effect.** Launches are followable and strong high-speed accelerations pass through. Per-trip
+  acceleration clipping falls from the constant-budget baseline to **~0% (Normal)** and **~2.1%
+  (Aggressive)** — excess ≈ 2 pp vs the original **+14.3 pp** style bias, which is removed.
+  Conditioned distances match raw; the FASTSim sim now runs clean (no silent launch failure).
+- **No duplicated logic / architecture preserved.** The probe reuses `cycle_from_arrays` (with a new
+  `condition=False` flag to avoid recursion) and the U-1 `build_mendeley_bev()` vehicle; the public
+  entry points (`condition_speed`, `cycle_from_arrays`) are unchanged, so U-3/U-4 consume it as before.
+- **Comparison with the constant-budget approach:** at low speed the two agree (`0.7·P_avail(≈45 kW)
+  ≈ 31 kW`), so launches/spike-handling are unchanged; they diverge at speed, where the new model
+  correctly permits the higher power the vehicle actually has.
+
+*(The prior constant-budget scheme — `ACCEL_POWER_FRACTION`, `_max_fwd_prop_power_w` — is removed. The
+scalar `vehicle_config.max_fwd_propulsion_power_w()` is retained; U-4 still uses it for reporting.)*
+
+## 2. Earlier pass (review fix **C-1**, superseded by §2A)
 
 - **Problem:** the acceleration budget used a hardcoded `U1_MAX_PROP_W = 44717.0` W, with a comment
   claiming it came from `u1_vehicle_params.json`. That was **wrong on both counts**: the file lists
@@ -50,9 +89,10 @@ left untouched (friction braking is not propulsion-limited), so only infeasible 
 2. **Uniform 1 Hz** resampling by linear interpolation is an adequate representation of UAH speed
    (native cadence ≈ 1 Hz); negatives clipped to 0.
 3. **Flat road** (grade = 0, elevation = 0) — altitude-derived grade is out of scope (documented risk).
-4. **Launch/spike conditioning** assumes only ~13% of peak motor power is available in the low-speed
-   region; this matches FASTSim's reported low-speed propulsion limit for this vehicle and is
-   tuneable per vehicle.
+4. **Conditioning uses two limits** (§2A): a speed-dependent propulsion-power budget
+   (`PROP_BUDGET = 0.7` of FASTSim's own `P_avail(prev)`, probed from the U-1 vehicle) governing high
+   speed, and a `A_MAX = 3.0 m/s²` (~0.3 g) acceleration cap governing the launch/low-speed ramp so
+   FASTSim's quasi-static solver can follow it. Both are documented, tuneable defaults.
 5. Ambient temperature array set to **295.15 K** (the thermal Tesla model needs one).
 
 ## 4. Validation
@@ -81,11 +121,16 @@ Regenerated from scratch (old `cycles/` deleted first), then re-run through the 
 ## 6. Files
 
 **Modified (all in `experiments/fastsim/`):**
-- `u2_cycle_adapter.py` — C-1: `condition_speed` reads max propulsion power from U-1 at runtime
-  (`_max_fwd_prop_power_w`), hardcoded `U1_MAX_PROP_W` + false comment removed, `ACCEL_POWER_FRACTION`
-  documented.
-- `vehicle_config.py` — added `max_fwd_propulsion_power_w()` (single source of truth). *(U-1 builder
-  itself unchanged.)*
+- `u2_cycle_adapter.py` — **speed-dependent conditioning (§2A):** `_prop_power_curve()` probes
+  FASTSim's `pwr_prop_fwd_max_watts`, `_avail_prop_power_w()` interpolates it, `condition_speed` caps
+  each step against `PROP_BUDGET · P_avail(v)`; `cycle_from_arrays` gains a `condition=False` flag for
+  the probe. Removed the constant-budget `ACCEL_POWER_FRACTION` / `_max_fwd_prop_power_w`.
+- `vehicle_config.py` — `max_fwd_propulsion_power_w()` retained (used by U-4 reporting). *(U-1 builder
+  unchanged.)*
 
 **Regenerated:** `u2_validation.json`, `cycles/` (git-ignored). **Not modified:** U-0, U-1 vehicle,
-braking/SoC models.
+braking/SoC models, U-4 analysis code (`u4_style_analysis.py`, `sim_config.py`).
+
+> **Note for the U-4 rerun:** `sim_config.accel_power_fraction` is now an obsolete mirror of the
+> removed constant. It is intentionally left untouched (U-4 is out of scope here) and should be
+> updated when U-4 results are regenerated post-merge.

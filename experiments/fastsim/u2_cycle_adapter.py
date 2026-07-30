@@ -87,58 +87,102 @@ def validate_arrays(time_s, speed_mps):
 
 # --------------------------- FASTSim cycle build (needs fastsim) ---------------------------
 U1_MASS_KG = 2070.8        # U-1 BEV mass; used to size the acceleration budget (U-1 never modified).
-# Fraction of the vehicle's PEAK forward propulsion power usable to condition the
-# launch/spike region. The peak (read from U-1 at runtime, see _max_fwd_prop_power_w)
-# is only reached near base speed; at the near-zero speeds this conditioner targets
-# the motor is torque-limited, so only a small fraction is actually available
-# (~45 kW of the 239 kW peak for this vehicle, as FASTSim reports at low speed).
-# Keeps conditioned launches FASTSim-followable: lower it if a launch still fails
-# "to meet speed trace", raise it if cycles look over-smoothed.
-ACCEL_POWER_FRACTION = 0.131
+PROP_BUDGET = 0.7          # fraction of the (speed-dependent) max forward propulsion power reserved
+                           # for acceleration; the remainder covers drag / rolling / grade.
+A_MAX_MPS2 = 3.0           # per-step acceleration cap (~0.3 g): the max a real vehicle/driver sustains,
+                           # and what FASTSim's quasi-static solver can follow from a cold start. The
+                           # power budget governs high speed; this governs the launch/low-speed ramp.
 
-_MAX_PROP_W = None         # cached max forward propulsion power, read once from U-1 (C-1)
+_PROP_CURVE = None         # cached (speed_grid, pwr_prop_fwd_max_grid), probed once from the U-1 vehicle
 
 
-def _max_fwd_prop_power_w():
-    """Read the U-1 vehicle's max forward propulsion power at runtime (cached).
-    Single source of truth = the parameterized FASTSim vehicle, via vehicle_config;
-    never hardcoded here."""
-    global _MAX_PROP_W
-    if _MAX_PROP_W is None:
-        sys.path.insert(0, str(HERE))
-        from vehicle_config import max_fwd_propulsion_power_w   # U-1 (imported, never modified)
-        _MAX_PROP_W = max_fwd_propulsion_power_w()
-    return _MAX_PROP_W
+def _prop_power_curve():
+    """Speed -> max forward propulsion power (W), read from FASTSim itself.
+
+    Probes the U-1 vehicle with a gentle, full-range speed ramp and records
+    `pwr_prop_fwd_max_watts` against achieved speed. This IS FASTSim's own
+    speed-dependent propulsion capability (torque-limited at low speed, power-
+    limited near/above base speed) - not a re-implemented torque curve, and not a
+    constant. Cached; the gentle probe ramp needs no conditioning (condition=False),
+    so there is no recursion with `condition_speed`."""
+    global _PROP_CURVE
+    if _PROP_CURVE is not None:
+        return _PROP_CURVE
+    import fastsim as fsim
+    sys.path.insert(0, str(HERE))
+    from vehicle_config import build_mendeley_bev          # U-1 (imported, never modified)
+    veh, _ = build_mendeley_bev()
+    n = int(MAX_PLAUSIBLE_MPS / 0.4) + 20
+    t = np.arange(n, dtype=float)
+    v = np.minimum(0.4 * t, MAX_PLAUSIBLE_MPS)             # gentle 0 -> vmax ramp (inherently feasible)
+    cyc, _ = cycle_from_arrays(t, v, condition=False)      # gentle -> conditioning not needed
+    sd = fsim.SimDrive(veh, cyc)
+    sd.walk()
+    df = sd.to_dataframe()
+    v_ach = np.asarray(df["veh.history.speed_ach_meters_per_second"].to_numpy(), float)
+    p_max = np.asarray(df["veh.history.pwr_prop_fwd_max_watts"].to_numpy(), float)
+    order = np.argsort(v_ach)
+    vg, idx = np.unique(np.round(v_ach[order], 2), return_index=True)  # strictly-increasing grid
+    pg = p_max[order][idx]
+    # Mechanical propulsion power is 0 at v=0 (P = F*v). Drop that degenerate point so the
+    # interpolation clamps to the real launch capability (the first non-zero sample, ~45 kW,
+    # which matches FASTSim's own launch limit) instead of 0 - otherwise the launch budget is
+    # zero and the vehicle can never leave rest.
+    keep = pg > 1000.0
+    _PROP_CURVE = (vg[keep], pg[keep])
+    return _PROP_CURVE
 
 
-def condition_speed(time_s, speed_mps, max_prop_w=None, mass_kg=U1_MASS_KG):
-    """Cap each 1 Hz step's acceleration to what the powertrain can deliver at the
-    achieved speed (the vehicle launches from rest). Solves m*(v-v_prev)*v <= budget
-    for the max next speed, where budget = ACCEL_POWER_FRACTION * the U-1 vehicle's
-    max forward propulsion power (read at runtime, not hardcoded). Fixes both
-    mid-motion starts and interior GPS spikes that otherwise make FASTSim fail to
-    meet the speed trace. Deceleration is left untouched (friction braking is not
-    propulsion-limited); feasible driving passes through unchanged - only infeasible
-    steps are lowered."""
+def _avail_prop_power_w(v):
+    """FASTSim's max forward propulsion power (W) available at speed v (interp of the
+    probed curve; clamps to the endpoint values outside the sampled range)."""
+    vg, pg = _prop_power_curve()
+    return float(np.interp(float(v), vg, pg))
+
+
+def condition_speed(time_s, speed_mps, mass_kg=U1_MASS_KG):
+    """Cap each 1 Hz step's acceleration to what the powertrain can actually deliver,
+    using FASTSim's own speed-dependent propulsion capability (see `_prop_power_curve`).
+
+    Each step keeps the largest next speed under BOTH limits:
+      * propulsion power - `m*(v - prev)*v <= PROP_BUDGET * P_avail(prev)`. The limit is
+        set by the speed at the START of the step (`prev`), mirroring FASTSim, whose
+        `pwr_prop_fwd_max` is a function of the current speed (from rest only ~45 kW is
+        available regardless of the target). This governs high speed.
+      * acceleration - `v <= prev + A_MAX_MPS2`. FASTSim's quasi-static solver cannot
+        follow the very steep launch ramp that the power limit alone permits from a cold
+        start (it demands ~3.9 m/s^2, the solver stalls and the sim fails); capping at a
+        realistic ~0.3 g keeps the ramp followable. This governs the launch/low-speed ramp.
+
+    Why speed-dependent (review C-1 escalation, found in U-4): a constant budget capped
+    high-speed accelerations far more than the vehicle requires, clipping ~23% of
+    AGGRESSIVE-motorway steps vs ~9% of NORMAL and biasing the per-style energy table.
+    The pair above removes that bias (clip: NORMAL ~0%, AGGRESSIVE ~2%) while staying
+    feasible. Deceleration is untouched (friction braking is not propulsion-limited);
+    only infeasible steps are lowered."""
     v = np.asarray(speed_mps, float).copy()
-    if max_prop_w is None:
-        max_prop_w = _max_fwd_prop_power_w()
-    budget = ACCEL_POWER_FRACTION * max_prop_w
     prev = 0.0                                        # FASTSim starts the vehicle at rest
     for i in range(len(v)):
-        v_max = (prev + np.sqrt(prev * prev + 4.0 * budget / mass_kg)) / 2.0
+        budget = PROP_BUDGET * _avail_prop_power_w(prev)          # limit set by start-of-step speed
+        v_power = (prev + np.sqrt(prev * prev + 4.0 * budget / mass_kg)) / 2.0
+        v_max = min(v_power, prev + A_MAX_MPS2)                   # power OR acceleration, whichever binds
         if v[i] > v_max:
             v[i] = v_max
         prev = v[i]
     return np.asarray(time_s, float), v
 
 
-def cycle_from_arrays(time_s, speed_mps, grade=0.0):
+def cycle_from_arrays(time_s, speed_mps, grade=0.0, condition=True):
     """(time, speed) arrays -> (fastsim.Cycle, pydict). Reused by U-3 for modified
     speed traces. Resizes every per-timestep field to our length (FASTSim needs
-    grade/elev/pwr_* all equal length); flat road (grade=0)."""
+    grade/elev/pwr_* all equal length); flat road (grade=0). `condition=False`
+    skips speed conditioning (used internally by the propulsion-curve probe, which
+    is already feasible - avoids recursion with condition_speed)."""
     import fastsim as fsim
-    time_s, speed_mps = condition_speed(time_s, speed_mps)
+    if condition:
+        time_s, speed_mps = condition_speed(time_s, speed_mps)
+    else:
+        time_s, speed_mps = np.asarray(time_s, float), np.asarray(speed_mps, float)
     d = fsim.Cycle.from_resource("udds.csv").to_pydict()   # schema-correct template
     n = len(time_s)
     tmpl_len = len(d["time_seconds"])

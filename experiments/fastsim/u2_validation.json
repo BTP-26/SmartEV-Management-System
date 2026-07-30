@@ -7,17 +7,17 @@
       "monotonic_time": true,
       "nonneg_speed": true,
       "speed_plausible": true,
-      "max_speed_mps": 31.89,
+      "max_speed_mps": 32.44,
       "duration_s": 623.0,
-      "distance_km": 16.561,
+      "distance_km": 16.634,
       "valid": true,
       "trip": "20151110175712-16km-D1-NORMAL1-SECONDARY",
       "sim": {
         "ran": true,
         "any_nan": false,
         "soc_start": 0.98,
-        "soc_end": 0.9574,
-        "soc_drop_pct": 2.259
+        "soc_end": 0.9572,
+        "soc_drop_pct": 2.278
       }
     },
     "AGGRESSIVE": {
@@ -26,17 +26,17 @@
       "monotonic_time": true,
       "nonneg_speed": true,
       "speed_plausible": true,
-      "max_speed_mps": 41.11,
+      "max_speed_mps": 41.33,
       "duration_s": 736.0,
-      "distance_km": 23.982,
+      "distance_km": 24.47,
       "valid": true,
       "trip": "20151111125233-24km-D1-AGGRESSIVE-MOTORWAY",
       "sim": {
         "ran": true,
         "any_nan": false,
         "soc_start": 0.98,
-        "soc_end": 0.9378,
-        "soc_drop_pct": 4.223
+        "soc_end": 0.9363,
+        "soc_drop_pct": 4.374
       }
     },
     "DROWSY": {
@@ -47,15 +47,15 @@
       "speed_plausible": true,
       "max_speed_mps": 31.42,
       "duration_s": 938.0,
-      "distance_km": 25.101,
+      "distance_km": 25.259,
       "valid": true,
       "trip": "20151111132348-25km-D1-DROWSY-MOTORWAY",
       "sim": {
         "ran": true,
         "any_nan": false,
         "soc_start": 0.98,
-        "soc_end": 0.9462,
-        "soc_drop_pct": 3.383
+        "soc_end": 0.946,
+        "soc_drop_pct": 3.405
       }
     }
   }
