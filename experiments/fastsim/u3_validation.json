@@ -3,66 +3,66 @@
   "cycles": {
     "normal": {
       "wh_per_km": {
-        "baseline": 138.86,
-        "anticipatory": 137.89,
-        "saved": 0.97,
-        "saved_pct": 0.7
+        "baseline": 139.41,
+        "anticipatory": 138.09,
+        "saved": 1.32,
+        "saved_pct": 0.95
       },
       "distance_km": {
-        "baseline": 16.561,
-        "anticipatory": 16.564
+        "baseline": 16.634,
+        "anticipatory": 16.635
       },
       "regen_energy_wh": {
-        "baseline": 375.12,
-        "anticipatory": 336.95
+        "baseline": 410.34,
+        "anticipatory": 353.04
       },
       "soc_end": {
-        "baseline": 0.95741,
-        "anticipatory": 0.95757
+        "baseline": 0.95722,
+        "anticipatory": 0.95744
       },
       "intervened": true,
       "any_nan": false
     },
     "aggressive": {
       "wh_per_km": {
-        "baseline": 179.29,
-        "anticipatory": 176.62,
-        "saved": 2.67,
-        "saved_pct": 1.49
+        "baseline": 181.98,
+        "anticipatory": 179.22,
+        "saved": 2.76,
+        "saved_pct": 1.52
       },
       "distance_km": {
-        "baseline": 23.982,
-        "anticipatory": 23.891
+        "baseline": 24.47,
+        "anticipatory": 24.367
       },
       "regen_energy_wh": {
-        "baseline": 808.97,
-        "anticipatory": 661.08
+        "baseline": 868.05,
+        "anticipatory": 707.87
       },
       "soc_end": {
-        "baseline": 0.93777,
-        "anticipatory": 0.93855
+        "baseline": 0.93626,
+        "anticipatory": 0.93711
       },
       "intervened": true,
       "any_nan": false
     },
     "drowsy": {
       "wh_per_km": {
-        "baseline": 137.2,
+        "baseline": 137.23,
         "anticipatory": 135.59,
-        "saved": 1.61,
-        "saved_pct": 1.17
+        "saved": 1.64,
+        "saved_pct": 1.2
       },
       "distance_km": {
-        "baseline": 25.101,
-        "anticipatory": 25.067
+        "baseline": 25.259,
+        "anticipatory": 25.225
       },
       "regen_energy_wh": {
-        "baseline": 634.43,
-        "anticipatory": 537.31
+        "baseline": 648.14,
+        "anticipatory": 546.39
       },
       "soc_end": {
-        "baseline": 0.94617,
-        "anticipatory": 0.94662
+        "baseline": 0.94595,
+        "anticipatory": 0.94641
       },
       "intervened": true,
       "any_nan": false

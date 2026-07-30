@@ -60,11 +60,15 @@ ablation metric is **net energy per km** (distance-normalized), and regen is rep
 
 Regenerated cycles (post C-1/C-2), baseline vs anticipatory through the U-1 BEV:
 
-| Cycle | Net energy (baseline → anticipatory) | Saved | Regen (base → anti) | Intervened | NaN |
-|---|---|---|---|---|---|
-| Normal | 138.9 → 137.9 Wh/km | −0.97 (−0.7 %) | 375 → 337 Wh | yes | no |
-| Aggressive | 179.3 → 176.6 Wh/km | −2.67 (−1.5 %) | 809 → 661 Wh | yes | no |
-| Drowsy | 137.2 → 135.6 Wh/km | −1.61 (−1.2 %) | 634 → 537 Wh | yes | no |
+Numbers below are with the corrected **speed-dependent U-2 conditioning** (regen values logged in
+`u3_validation.json`). Aggressive Wh/km rose vs the earlier constant-budget run (179 → 182) because
+strong accelerations are no longer clipped — the intended de-biasing.
+
+| Cycle | Net energy (baseline → anticipatory) | Saved | Intervened | NaN |
+|---|---|---|---|---|
+| Normal | 139.41 → 138.09 Wh/km | −1.32 (−0.95 %) | yes | no |
+| Aggressive | 181.98 → 179.22 Wh/km | −2.76 (−1.52 %) | yes | no |
+| Drowsy | 137.23 → 135.59 Wh/km | −1.64 (−1.20 %) | yes | no |
 
 - **Coupling activates** and **anticipatory behaviour occurs** (speed traces modified; controller
   intervened on all three).
