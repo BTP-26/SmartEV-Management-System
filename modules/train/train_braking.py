@@ -105,7 +105,7 @@ def train_baseline_model(X_train, y_train, X_val, y_val, device="cpu", config=No
     training_config = config.get_training_config() if config else {}
     batch_size = training_config.get('batch_size', 32)
     learning_rate = training_config.get('learning_rate', 0.001)
-    epochs = training_config.get('epochs.braking_baseline', 3)
+    epochs = training_config.get('epochs', {}).get('braking_baseline', 3)
     patience = training_config.get('patience', 2)
     
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
@@ -204,7 +204,7 @@ def train_multitask_model(X_train, y_class_train, y_int_train, X_val, y_class_va
     training_config = config.get_training_config() if config else {}
     batch_size = training_config.get('batch_size', 32)
     learning_rate = training_config.get('learning_rate', 0.001)
-    epochs = training_config.get('epochs.braking_multitask', 3)
+    epochs = training_config.get('epochs', {}).get('braking_multitask', 3)
     patience = training_config.get('patience', 2)
     
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
@@ -372,11 +372,27 @@ def main():
     
     if args.ga:
         print("Running Genetic Algorithm Optimization...")
-        os.chdir("modules/braking/models")
-        from modules.braking.models.genetic_algorithm_optimizer import GeneticAlgorithmOptimizer
-        ga_optimizer = GeneticAlgorithmOptimizer()
-        ga_optimizer.run_optimization()
-        os.chdir("../../../")
+        from modules.braking.models.genetic_algorithm_optimizer import (
+            GeneticAlgorithmOptimizer, MultitaskHardDataset,
+            save_best_hyperparams, plot_fitness_curve,
+        )
+        train_ds = MultitaskHardDataset(X_train, y_class_train, y_int_train)
+        val_ds = MultitaskHardDataset(X_val, y_class_val, y_int_val)
+        ga_optimizer = GeneticAlgorithmOptimizer(
+            train_dataset=train_ds,
+            val_dataset=val_ds,
+            population_size=20,
+            generations=10,
+            mutation_rate=0.15,
+            tournament_size=3,
+            max_epochs=15,
+            device=str(device),
+        )
+        best_hp, best_f1, fitness_curve = ga_optimizer.run()
+        save_best_hyperparams(best_hp, best_f1,
+                               output_path="modules/braking/models/best_ga_hyperparams.json")
+        plot_fitness_curve(fitness_curve,
+                            output_path="modules/braking/models/ga_fitness_curve.png")
     
     print("All training completed!")
 
