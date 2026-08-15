@@ -23,11 +23,12 @@ training:
   batch_size: 32
   learning_rate: 0.001
   epochs:
-    braking_baseline: 3
-    braking_multitask: 3
+    braking_baseline: 30
+    braking_multitask: 30
     soc_baseline: 2
     soc_cnn: 2
-  patience: 2
+  patience: 5
+  eval_batch_size: 512
   early_stopping: true
   
 models:
