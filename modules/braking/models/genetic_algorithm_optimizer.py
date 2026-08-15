@@ -70,6 +70,11 @@ class GeneticAlgorithmOptimizer:
     ):
         self.train_dataset = train_dataset
         self.val_dataset = val_dataset
+        # Derive input feature dim from the actual data instead of assuming SoC's
+        # 3-feature layout (bug: this optimizer was copy-pasted from the SoC GA
+        # optimizer, which hardcoded input_dim=3; braking windows have 7 features).
+        sample_x = train_dataset[0][0]
+        self.input_dim = int(sample_x.shape[-1])
         self.population_size = population_size
         self.generations = generations
         self.mutation_rate = mutation_rate
@@ -161,7 +166,7 @@ class GeneticAlgorithmOptimizer:
     # Model Training / Evaluation
     def _build_model(self, hp: HyperParams) -> nn.Module:
         model = MultitaskLSTMCNNAttention(
-            input_dim=3,
+            input_dim=self.input_dim,
             cnn_channels=hp.cnn_filters,
             lstm_hidden=hp.lstm_hidden_size,
             num_lstm_layers=hp.num_lstm_layers,

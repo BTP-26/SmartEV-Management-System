@@ -190,9 +190,16 @@ def main():
     if args.baseline or (not args.cnn):
         baseline_model = train_lstm_baseline(X_train, y_train, X_val, y_val, device, config)
         
-        baseline_model.eval()
+       baseline_model.eval()
+        eval_batch_size = config.get('training.eval_batch_size', 512) if config else 512
+        preds_chunks = []
         with torch.no_grad():
-            test_predictions = baseline_model(torch.tensor(X_test, dtype=torch.float32).to(device)).cpu().numpy()
+            for start in range(0, len(X_test), eval_batch_size):
+                chunk = torch.tensor(
+                    X_test[start:start + eval_batch_size], dtype=torch.float32
+                ).to(device)
+                preds_chunks.append(baseline_model(chunk).cpu().numpy())
+        test_predictions = np.concatenate(preds_chunks, axis=0)
         
         test_rmse = np.sqrt(mean_squared_error(y_test, test_predictions))
         test_mae = mean_absolute_error(y_test, test_predictions)

@@ -119,8 +119,13 @@ def evaluate_soc_model(model, X_test, y_test, label="LSTM-CNN-Attention SoC", de
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.eval()
+    preds = []
+    eval_batch_size = 256
     with torch.no_grad():
-        preds = model(torch.tensor(X_test).to(device)).cpu().numpy()
+        for i in range(0, len(X_test), eval_batch_size):
+            batch_x = torch.tensor(X_test[i:i+eval_batch_size]).to(device)
+            preds.append(model(batch_x).cpu().numpy())
+    preds = np.concatenate(preds)
 
     # Report in % SoC via the one inverse transform (roadmap B1 step 2), not the raw
     # [0,1] training scale, so this matches evaluate_soc.py's Table 6 numbers.
