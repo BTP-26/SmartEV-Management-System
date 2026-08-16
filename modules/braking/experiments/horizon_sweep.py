@@ -138,13 +138,17 @@ def _build_model(model_name, input_dim, num_classes=2):
 
 
 def _train_and_predict(X_tr, y_tr, X_eval, device, epochs, batch_size, lr, seed,
-                       yint_tr=None, lam=0.0, model_name='ours'):
+                       yint_tr=None, lam=0.0, model_name='ours', return_model=False):
     """Train the braking model and predict on X_eval.
 
     Single-task by default (classification only). If yint_tr is given, trains the
     multitask model with loss = CE(class) + lam * MSE(intensity) and also returns
     intensity predictions. Returns (preds, prob_pos, int_preds); int_preds is None
     in single-task mode. model_name selects 'ours' or the 'yang' base architecture.
+
+    return_model=True additionally returns the trained model as the first element
+    (model, preds, prob_pos, int_preds), for callers that want to checkpoint it -
+    default is False, so existing call sites (run_sweep, run_lodo) are unaffected.
     """
     import torch
     import torch.nn as nn
@@ -189,6 +193,8 @@ def _train_and_predict(X_tr, y_tr, X_eval, device, epochs, batch_size, lr, seed,
             preds.append(logits.argmax(dim=1).cpu().numpy())
             ints.append(intensity.cpu().numpy())
     int_preds = np.concatenate(ints) if multitask else None
+    if return_model:
+        return model, np.concatenate(preds), np.concatenate(probs), int_preds
     return np.concatenate(preds), np.concatenate(probs), int_preds
 
 
